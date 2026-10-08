@@ -1,0 +1,106 @@
+/* ============================================================
+   EPIC AI — окно входа (референс пользователя, раунд 24):
+   бейдж-иконка, заголовок, подзаголовок, синяя кнопка Telegram,
+   «или с телефона» + QR и код сверки. Вход уходит во ВНЕШНИЙ
+   браузер; внутри приложения сторонних страниц нет.
+   ============================================================ */
+
+body.loginwin {
+  display: flex; align-items: center; justify-content: center;
+  background: transparent;
+}
+
+.login-card {
+  width: 400px; padding: 30px 30px 20px;
+  background: var(--glass-panel);
+  border: 1px solid var(--stroke);
+  border-radius: 16px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .55);
+  text-align: center;
+}
+
+.login-badge {
+  width: 74px; height: 74px; margin: 0 auto 14px;
+  border-radius: 18px;
+  background: var(--bg-muted);
+  border: 1px solid var(--stroke);
+  display: flex; align-items: center; justify-content: center;
+}
+.login-badge .brand-logo { width: 26px; height: 40px; }
+
+.login-title { font-size: 21px; font-weight: 800; letter-spacing: .02em; }
+.login-sub { margin-top: 8px; font-size: 11.5px; color: var(--text-muted); line-height: 1.6; }
+
+.login-btn {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  width: 100%; height: 44px; margin-top: 16px;
+  border-radius: 10px; border: 1px solid var(--stroke);
+  background: var(--bg-surface); color: var(--text-primary);
+  font-size: 13px; font-weight: 700; letter-spacing: .02em;
+  cursor: pointer; transition: filter .15s ease, border-color .15s ease, color .15s ease;
+}
+.login-btn:hover { border-color: var(--accent-bright); color: var(--accent-bright); }
+.login-btn[disabled] { opacity: .55; pointer-events: none; }
+.login-btn svg { width: 18px; height: 18px; flex: none; }
+
+/* Фирменная синяя кнопка Telegram — как в референсе */
+.login-btn--telegram {
+  background: #2AABEE; border-color: #2AABEE; color: #fff;
+}
+.login-btn--telegram:hover { background: #229ED9; border-color: #229ED9; color: #fff; filter: brightness(1.05); }
+
+.login-btn--discord { background: #5865F2; border-color: #5865F2; color: #fff; }
+.login-btn--discord:hover { background: #4752c4; border-color: #4752c4; color: #fff; }
+
+.login-btn--dev { height: 36px; margin-top: 8px; font-size: 11.5px; font-weight: 600; color: var(--text-muted); }
+
+.login-none { margin-top: 14px; font-size: 12.5px; color: var(--text-muted); line-height: 1.6; }
+
+.login-divider {
+  display: flex; align-items: center; gap: 10px;
+  margin: 18px 0 12px;
+  color: var(--text-subtle); font-size: 10.5px; letter-spacing: .06em;
+}
+.login-divider::before, .login-divider::after {
+  content: ''; flex: 1; height: 1px; background: var(--stroke);
+}
+
+.login-qr__row { display: flex; gap: 14px; text-align: left; align-items: center; }
+.login-qr__box {
+  flex: none; width: 118px; height: 118px; padding: 8px;
+  background: #fff; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+}
+.login-qr__box img { width: 100%; height: 100%; display: block; }
+.login-qr__text { font-size: 11px; color: var(--text-muted); line-height: 1.6; }
+.login-qr__code { margin-top: 8px; color: var(--text-primary); font-size: 11.5px; }
+.login-qr__code b { font-size: 17px; letter-spacing: .14em; color: var(--text-primary); }
+
+.login-field {
+  width: 100%; height: 36px; margin-bottom: 8px; padding: 0 10px;
+  border-radius: 8px; border: 1px solid var(--stroke);
+  background: var(--bg-surface); color: var(--text-primary);
+  font-size: 12px; outline: none;
+}
+.login-field:focus-visible { border-color: var(--accent-bright); }
+
+.login-status {
+  margin-top: 14px; min-height: 16px;
+  font-size: 10.5px; color: var(--text-subtle); line-height: 1.5;
+}
+.login-status b { color: var(--accent-bright); }
+
+/* ── Состояние «Ожидание входа» (п.5 раунда 25) ── */
+.login-wait { margin-top: 18px; }
+.login-wait__spin {
+  width: 34px; height: 34px; margin: 0 auto 10px;
+  border-radius: 50%;
+  border: 3px solid var(--stroke);
+  border-top-color: var(--accent);
+  animation: login-spin 0.9s linear infinite;
+}
+@keyframes login-spin { to { transform: rotate(360deg); } }
+.login-wait__title { font-size: 14px; font-weight: 800; letter-spacing: .04em; }
+.login-wait__text { margin-top: 8px; font-size: 11px; color: var(--text-muted); line-height: 1.6; }
+.login-wait__text b { color: var(--accent-bright); font-size: 14px; letter-spacing: .12em; }
+.login-btn--cancel { height: 34px; margin-top: 12px; font-size: 11px; color: var(--text-muted); }

@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="ru" data-blur="true" data-animations="true" data-lowperf="false">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Epic AI — демо интерфейса</title>
+<!-- Демо-страница Epic AI: mock-backend встроен, сеть не требуется -->
+<style>
+/* ============================================================
+   EPIC AI — дизайн-токены 
+   Единственный источник цветов. Значения синхронизированы с
+   shared/tokens.js, который используют backend и Electron.
+   ============================================================ */
+
+:root {
+  /* Accent */
+  --accent:        #ACE72E;   /* активные элементы, выбранные состояния, CTA, успех, подсветка найденного */
+  --accent-bright: #E2FF3F;   /* hover, focus, яркая подсветка */
+  --accent-mid:    #72CE1C;   /* иконки, вторичные акценты, маркеры */
+
+  /* Backgrounds */
+  --bg-base:    #0C0C0C;      /* самый тёмный фон */
+  --bg-dark:    #121416;      /* основная панель, карточки, шапки */
+  --bg-surface: #1A1A1A;      /* поля ввода, поверхности */
+  --bg-muted:   #2A2A2A;      /* вторичные поверхности */
+
+  /* Text */
+  --text-primary: #EEF9F4;
+  --text-muted:   #888888;
+  --text-subtle:  #666666;
+
+  /* States */
+  --danger:  #E74C3C;         /* ошибки и удалённый текст в diff */
+  --warning: #F87171;         /* предупреждения, «есть обновления» */
+  --info:    #3498DB;
+
+  /* Роли  */
+  --role-player:       #888888;
+  --role-helper:       #72CE1C;
+  --role-admin:        #3498DB;
+  --role-senior-admin: #9B59B6;
+  --role-deputy-chief: #E67E22;
+  --role-chief-admin:  #E74C3C;
+  --role-project-lead: #F1C40F;
+  --role-developer:    #E2FF3F;
+
+  /* Прозрачность главной панели  */
+  --panel-alpha: 0.82;
+  --surface-alpha: 0.78;
+  --muted-alpha: 0.72;
+  --base-alpha: 0.90;
+  --drop-alpha: 0.96;
+
+  --glass-panel:   rgba(18, 20, 22, var(--panel-alpha));
+  --glass-surface: rgba(26, 26, 26, var(--surface-alpha));
+  --glass-muted:   rgba(42, 42, 42, var(--muted-alpha));
+  --glass-base:    rgba(12, 12, 12, var(--base-alpha));
+
+  --stroke:        rgba(238, 249, 244, 0.08);
+  --stroke-strong: rgba(238, 249, 244, 0.14);
+  --stroke-accent: rgba(172, 231, 46, 0.35);
+
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-xs: 6px;
+
+  /* Длительности переходов фиксированные: отдельной настройки анимаций нет */
+  --t-fast: 120ms;
+  --t-base: 180ms;
+  --t-slow: 280ms;
+  --ease: cubic-bezier(.22,.61,.36,1);
+
+  --font: "Segoe UI", "Inter", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "Cascadia Mono", "JetBrains Mono", Consolas, "Courier New", monospace;
+}
+
+/* Blur отключаем одной переменной — настройка «blur»  */
+html[data-lowperf="true"] { --t-fast: 0ms; --t-base: 0ms; --t-slow: 0ms; }
+
+
+/* ============================================================
+   EPIC AI — базовые стили (общие для всех окон)
+   : тёмное, полупрозрачное, компактное, мягкий blur,
+   минимум визуального шума, работа поверх игры.
+   ============================================================ */
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  background: transparent;          /* прозрачное окно Electron */
+  color: var(--text-primary);
+  font-family: var(--font);
+  font-size: 13px;
+  line-height: 1.45;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body { user-select: none; }
+
+/* Выделение текста разрешаем только в содержательных областях */
+.selectable, .answer-text, .source-text, .diff-view, pre, code, input, textarea {
+  user-select: text;
+}
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(238, 249, 244, 0.12);
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(172, 231, 46, 0.35); }
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { color: var(--accent-bright); }
+
+button { font-family: inherit; font-size: inherit; color: inherit; background: none; border: none; cursor: pointer; }
+input, textarea, select { font-family: inherit; font-size: inherit; color: inherit; }
+
+/* ---------- Утилиты ---------- */
+
+.glass {
+  background: var(--glass-panel);
+  border: 1px solid var(--stroke);
+}
+
+.muted { color: var(--text-muted); }
+.subtle { color: var(--text-subtle); }
+.accent { color: var(--accent); }
+.danger { color: var(--danger); }
+.warning { color: var(--warning); }
+.mono { font-family: var(--font-mono); }
+
+.row { display: flex; align-items: center; }
+.col { display: flex; flex-direction: column; }
+.gap-4 { gap: 4px; } .gap-6 { gap: 6px; } .gap-8 { gap: 8px; }
+.gap-10 { gap: 10px; } .gap-12 { gap: 12px; } .gap-16 { gap: 16px; }
+.grow { flex: 1 1 auto; min-width: 0; }
+.nowrap { white-space: nowrap; }
+.ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.center { display: flex; align-items: center; justify-content: center; }
+
+.divider { height: 1px; background: var(--stroke); flex: none; }
+.divider-v { width: 1px; background: var(--stroke); align-self: stretch; flex: none; }
+
+/* ---------- Кнопки ---------- */
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  height: 30px; padding: 0 12px;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--stroke);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease),
+              border-color var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
+  white-space: nowrap;
+}
+.btn:hover { border-color: var(--accent-bright); color: var(--accent-bright); }
+.btn:active { transform: translateY(1px); }
+.btn:focus-visible { outline: 2px solid var(--accent-bright); outline-offset: 1px; }
+.btn[disabled] { opacity: .4; pointer-events: none; }
+
+.btn--accent {
+  background: var(--accent);
+  border-color: var(--accent-bright);
+  color: #0C0C0C;
+}
+.btn--accent:hover { background: var(--accent-bright); border-color: var(--accent-bright); color: #0C0C0C; }
+
+/* П.6: у кнопок ВИДНА обводка — ghost больше не сливается с фоном. */
+.btn--ghost { background: rgba(255,255,255,.03); border-color: rgba(255,255,255,.28); color: var(--text-primary); }
+.btn--ghost:hover { color: var(--accent-bright); background: rgba(226, 255, 63, 0.06); border-color: var(--accent-bright); }
+
+.btn--danger { border-color: rgba(231, 76, 60, .4); color: var(--danger); }
+.btn--danger:hover { background: rgba(231, 76, 60, .14); border-color: var(--danger); color: #fff; }
+
+.btn--sm { height: 24px; padding: 0 8px; font-size: 10px; }
+.btn--lg { height: 38px; padding: 0 18px; font-size: 12px; }
+
+.icon-btn {
+  width: 30px; height: 30px; flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: var(--radius-xs);
+  color: var(--text-muted);
+  transition: color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+}
+.icon-btn:hover { color: var(--accent-bright); background: rgba(226, 255, 63, 0.08); }
+.icon-btn.is-active { color: var(--accent); }
+.icon-btn svg { width: 16px; height: 16px; }
+
+/* ---------- Бейджи / метки ---------- */
+
+.badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  height: 20px; padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid var(--stroke);
+  background: var(--glass-surface);
+  font-size: 10px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--text-muted);
+}
+.badge .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
+.badge--accent { color: var(--accent); border-color: var(--stroke-accent); background: rgba(172,231,46,.08); }
+.badge--danger { color: var(--danger); border-color: rgba(231,76,60,.35); background: rgba(231,76,60,.10); }
+.badge--warning { color: var(--warning); border-color: rgba(248,113,113,.35); background: rgba(248,113,113,.10); }
+.badge--mid { color: var(--accent-mid); border-color: rgba(114,206,28,.35); background: rgba(114,206,28,.10); }
+
+.tag {
+  display: inline-block; padding: 1px 6px; border-radius: 4px;
+  background: rgba(238,249,244,.06); color: var(--text-muted);
+  font-size: 10px; letter-spacing: .03em;
+}
+
+/* ---------- Заголовки секций ---------- */
+
+.section-title {
+  font-size: 10px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase;
+  color: var(--text-subtle);
+}
+
+/* ---------- Поля ввода ---------- */
+
+.field {
+  height: 30px; padding: 0 10px;
+  background: var(--glass-surface);
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius-xs);
+  color: var(--text-primary);
+  transition: border-color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+  width: 100%;
+}
+.field::placeholder { color: var(--text-subtle); }
+.field:hover { border-color: var(--stroke-strong); }
+.field:focus { outline: none; border-color: var(--accent); background: rgba(26,26,26,.95); }
+.field:focus-visible { box-shadow: 0 0 0 2px rgba(226,255,63,.18); }
+textarea.field { height: auto; padding: 8px 10px; resize: vertical; line-height: 1.5; }
+select.field { appearance: none; padding-right: 26px; cursor: pointer; }
+
+/* ---------- Переключатель ---------- */
+
+.switch { position: relative; width: 34px; height: 18px; flex: none; cursor: pointer; }
+.switch input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+.switch .track {
+  position: absolute; inset: 0; border-radius: 999px;
+  background: var(--bg-muted); border: 1px solid var(--stroke);
+  transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+.switch .thumb {
+  position: absolute; top: 3px; left: 3px; width: 12px; height: 12px; border-radius: 50%;
+  background: var(--text-muted);
+  transition: transform var(--t-base) var(--ease), background var(--t-fast) var(--ease);
+}
+.switch input:checked ~ .track { background: rgba(172,231,46,.22); border-color: var(--stroke-accent); }
+.switch input:checked ~ .thumb { transform: translateX(16px); background: var(--accent); }
+.switch input:focus-visible ~ .track { box-shadow: 0 0 0 2px rgba(226,255,63,.25); }
+
+/* ---------- Спиннер ---------- */
+
+.spinner {
+  width: 14px; height: 14px; flex: none;
+  border: 2px solid rgba(172,231,46,.22);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 700ms linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---------- Пульсация статуса ---------- */
+
+.pulse { animation: pulse 1600ms ease-in-out infinite; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+
+/* ---------- Скролл-области ---------- */
+
+.scroll { overflow-y: auto; overflow-x: hidden; }
+.scroll::-webkit-scrollbar { width: 6px; }
+
+/* ── Фирменный знак EpicRP (раунд 28): единый data-URL для всех окон ── */
+.brand-logo {
+  display: inline-block; width: 100%; height: 100%;
+  background: url("data:image/png;base64,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") center / contain no-repeat;
+}
+
+</style>
+<style>
+
+/* Оформление самой демо-страницы — не часть продукта */
+body { background: #07080a !important; height: auto !important; min-height: 100vh; overflow: auto !important;
+       background-image: radial-gradient(circle at 18% 12%, rgba(172,231,46,.10), transparent 42%),
+                         radial-gradient(circle at 82% 78%, rgba(52,152,219,.10), transparent 45%),
+                         linear-gradient(#0b0d10, #07080a) !important; }
+.demo-note { max-width: 1240px; margin: 18px auto 14px; padding: 10px 14px; font-size: 11.5px; line-height: 1.65;
+             color: #888; border: 1px dashed rgba(238,249,244,.16); border-radius: 10px; background: rgba(18,20,22,.5); }
+.demo-note a { color: #ACE72E; }
+.demo-stage { display: flex; gap: 14px; align-items: flex-start; justify-content: center; flex-wrap: wrap; padding: 0 18px 44px; }
+.demo-window { flex: none; position: relative; }
+
+</style>
+</head>
+<body>
+
+<div class="demo-stage" style="padding-top:26px">
+  <div class="demo-window glass" style="width:580px;padding:26px 28px;border-radius:14px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+      <svg width="26" height="26" viewBox="0 0 32 32" fill="none"><path d="M5 25 L16 5 L27 25 Z" stroke="#ACE72E" stroke-width="2.4" stroke-linejoin="round"/><circle cx="16" cy="19.5" r="2.6" fill="#E2FF3F"/></svg>
+      <div style="font-size:17px;font-weight:800;letter-spacing:.2em">EPIC <span style="color:#ACE72E">AI</span></div>
+    </div>
+    <div class="subtle" style="font-size:11.5px;margin-bottom:20px;line-height:1.7">
+      Интерактивные демо-страницы интерфейса из  v1.0. Работают без Electron и без сети:
+      внутри встроен mock-backend с тестовыми данными. Код renderer'а — тот же самый, что в продукте.
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <a class="btn btn--lg" href="main.html" style="text-decoration:none">Основная панель · ответ AI · настройки</a>
+      <a class="btn btn--lg" href="sources.html" style="text-decoration:none">Окно найденных источников</a>
+      <a class="btn btn--lg" href="confirm.html" style="text-decoration:none">Окно подтверждения «Спросить ИИ?»</a>
+      <a class="btn btn--lg" href="main.html#kb" style="text-decoration:none">База знаний: «Посмотреть» и «История изменений»</a>
+      <a class="btn btn--lg" href="admin.html" style="text-decoration:none">Административная панель</a>
+      <a class="btn btn--lg" href="splash.html" style="text-decoration:none">Splash screen</a>
+    </div>
+    <div class="subtle" style="font-size:10.5px;margin-top:20px;line-height:1.8">
+      Демо-документы вымышлены и нужны только для проверки интерфейса.<br>
+      Реальная база знаний наполняется crawler'ом с forum.epic-gta.com — порядок согласования описан в docs/LEGAL.md.
+    </div>
+  </div>
+</div>
+<script type="module">
+
+</script>
+</body>
+</html>

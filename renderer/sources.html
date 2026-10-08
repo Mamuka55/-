@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="ru" data-lowperf="false">
+<head>
+<meta charset="utf-8" />
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src https: data: blob:; connect-src http://127.0.0.1:* http://localhost:* https:; font-src 'self' data:;" />
+<title>Найденные источники — Epic AI</title>
+<link rel="stylesheet" href="styles/tokens.css" />
+<link rel="stylesheet" href="styles/base.css" />
+<link rel="stylesheet" href="styles/sources.css" />
+</head>
+<body>
+  <div class="sources glass">
+    <header class="sources__head">
+      <div class="row gap-8" style="min-width:0">
+        <span class="section-title">Найденные источники</span>
+        <span class="badge" id="src-mode">ПРАВИЛА</span>
+        <span class="badge badge--accent" id="src-count">0</span>
+      </div>
+      <span class="grow"></span>
+      <button class="icon-btn" id="src-refresh" title="Обновить" aria-label="Обновить">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 11a8 8 0 1 0-2.3 6.3" stroke-linecap="round"/><path d="M20 5v6h-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="icon-btn" id="src-close" title="Закрыть" aria-label="Закрыть">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </header>
+
+    <div class="sources__question" id="src-question"></div>
+
+    <div class="sources__body scroll" id="src-list"></div>
+
+    <footer class="sources__foot">
+      <span class="subtle" id="src-meta" style="font-size:10px"></span>
+      <span class="grow"></span>
+      <span class="subtle" style="font-size:10px">Номера пунктов, названия и даты — из базы источников</span>
+    </footer>
+  </div>
+
+  <script type="module" src="scripts/sources.js"></script>
+</body>
+</html>

@@ -1,0 +1,50 @@
+/* ============================================================
+   EPIC AI — Splash Screen 
+   360 × 220 px, небольшой, автоматически закрывается.
+   ============================================================ */
+
+body { display: flex; align-items: center; justify-content: center; height: 100vh; }
+
+.splash {
+  width: 100%; height: 100%;
+  display: flex; flex-direction: column;
+  padding: 20px 22px 18px;
+  border-radius: 14px;
+  box-shadow: 0 22px 60px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.04);
+  overflow: hidden;
+  animation: splash-in var(--t-slow) var(--ease);
+}
+@keyframes splash-in { from { opacity: 0; transform: scale(.97); } to { opacity: 1; transform: none; } }
+
+.splash__logo { display: none; }
+
+.splash__badge {
+  width: 74px; height: 74px; margin: 0 auto 16px;
+  border-radius: 18px;
+  background: var(--bg-muted);
+  border: 1px solid var(--stroke);
+  display: flex; align-items: center; justify-content: center;
+  
+}
+.splash__badge .brand-logo { width: 26px; height: 40px; }
+
+.splash__title {
+  font-size: 19px; font-weight: 800; letter-spacing: .01em;
+  color: var(--text-primary);
+}
+.splash__sub {
+  margin-top: 8px; font-size: 11.5px; color: var(--text-muted); letter-spacing: .02em;
+}
+
+.splash__bar {
+  margin-top: 22px; height: 5px; border-radius: 999px;
+  background: var(--bg-muted); overflow: hidden;
+}
+.splash__bar i {
+  display: block; height: 100%; width: 0%;
+  border-radius: 999px; background: var(--accent);
+  transition: width .25s var(--ease);
+}
+
+/* Список этапов скрыт, но остаётся в DOM: демо-тесты и скринридеры */
+.splash__steps { display: none; }

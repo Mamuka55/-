@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src data:;" />
+<title>Epic AI</title>
+<link rel="stylesheet" href="styles/tokens.css" />
+<link rel="stylesheet" href="styles/base.css" />
+<style>
+  body { display: flex; align-items: center; justify-content: center; height: 100vh; }
+ .box {
+    width: 100%; height: 100%;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 10px; padding: 24px 28px; text-align: center;
+    border-radius: 14px;
+    background: var(--glass-panel);
+    border: 1px solid rgba(231,76,60,.28);
+    box-shadow: 0 22px 60px rgba(0,0,0,.55);
+  }
+ .box__icon { color: var(--danger); font-size: 28px; line-height: 1; }
+ .box__title { font-size: 13px; font-weight: 800; letter-spacing:.18em; }
+ .box__title b { color: var(--accent); }
+ .box__msg { font-size: 12px; color: var(--text-muted); line-height: 1.65; white-space: pre-wrap; max-width: 380px; }
+ .box__hint { font-size: 10.5px; color: var(--text-subtle); line-height: 1.6; }
+ .box__actions { display: flex; gap: 8px; margin-top: 6px; }
+ .box__foot {
+    margin-top: 12px; padding-top: 10px;
+    border-top: 1px solid var(--stroke);
+    font-size: 10px; color: var(--text-subtle); line-height: 1.7; text-align: center;
+  }
+ .box__foot code {
+    font-family: var(--font-mono); font-size: 9.5px;
+    color: var(--accent-mid); background: rgba(114,206,28,.08);
+    padding: 1px 4px; border-radius: 3px;
+  }
+</style>
+</head>
+<body>
+  <div class="box">
+    <div class="box__icon">⛔</div>
+    <div class="box__title">EPIC <b>AI</b></div>
+    <div class="box__msg" id="message">Аккаунт заблокирован</div>
+    <div class="box__hint">
+      Заблокированный пользователь не получает доступ к интерфейсу Epic AI,<br>
+      не может отправлять запросы и не получает источники.<br><br>
+      Проверка выполняется на backend, поэтому обойти её перезапуском не получится.
+    </div>
+    <div class="box__actions">
+      <button class="btn" id="logout" type="button">Выйти из аккаунта</button>
+      <button class="btn btn--ghost" id="retry" type="button">Проверить снова</button>
+    </div>
+    <div class="box__foot">
+      Если заблокировали по ошибке — разблокируйте аккаунт из админ-панели<br>
+      (Пользователи → Блокировки) или командой на сервере:<br>
+      <code>npm run users -- --unblock &lt;id&gt;</code> · список: <code>npm run users</code>
+    </div>
+  </div>
+  <script>
+    (function () {
+      var q = new URLSearchParams(location.search).get('message');
+      if (q) document.getElementById('message').textContent = q;
+
+      document.getElementById('logout').addEventListener('click', function () {
+        if (window.epicAI) window.epicAI.invoke('epic:account:logout').catch(function () {});
+        else window.close();
+      });
+      document.getElementById('retry').addEventListener('click', function () {
+        if (window.epicAI) window.epicAI.invoke('epic:account:recheck').catch(function () {});
+        else window.close();
+      });
+    })();
+  </script>
+</body>
+</html>

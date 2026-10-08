@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="ru" data-lowperf="false">
+<head>
+<meta charset="utf-8" />
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src https: data: blob:; connect-src http://127.0.0.1:* http://localhost:* https:; font-src 'self' data:;" />
+<title>История ответов — Epic AI</title>
+<link rel="stylesheet" href="styles/tokens.css" />
+<link rel="stylesheet" href="styles/base.css" />
+<link rel="stylesheet" href="styles/main.css" />
+<link rel="stylesheet" href="styles/kb.css" />
+</head>
+<body class="histwin">
+  <div class="histwin__chrome">
+    <span class="histwin__logo" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M12 8v4l3 2"/></svg>
+    </span>
+    <b class="histwin__title">История ответов</b>
+    <span class="subtle" style="font-size:10.5px">клик — открыть ответ в панели</span>
+    <span class="grow"></span>
+    <button class="icon-btn" id="hist-refresh" title="Обновить список" aria-label="Обновить список">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M20 11a8 8 0 1 0-2.3 6.3"/><path d="M20 4v7h-7"/></svg>
+    </button>
+    <button class="icon-btn" id="hist-close" title="Закрыть" aria-label="Закрыть">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+  </div>
+  <div class="histwin__body" id="hist-root"></div>
+  <script type="module" src="scripts/history.js"></script>
+</body>
+</html>

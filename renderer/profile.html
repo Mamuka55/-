@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ru" data-lowperf="false">
+<head>
+<meta charset="utf-8" />
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src https: data: blob:; connect-src http://127.0.0.1:* http://localhost:* https:; font-src 'self' data:;" />
+<title>Профиль — Epic AI</title>
+<link rel="stylesheet" href="styles/tokens.css" />
+<link rel="stylesheet" href="styles/base.css" />
+<link rel="stylesheet" href="styles/main.css" />
+<link rel="stylesheet" href="styles/profile.css" />
+</head>
+<!-- Профиль и аккаунт — ОТДЕЛЬНОЕ окно (референс пользователя):
+     аватар, роль, «@ник · вход через Telegram», карточка «Ответы ИИ сегодня»
+     с остатком лимита и прогресс-баром, карточка «Выйти из аккаунта». -->
+<body class="profwin">
+  <div class="profwin__chrome">
+    <span class="profwin__logo" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c1.4-3.6 4.2-5.4 7.5-5.4s6.1 1.8 7.5 5.4"/></svg>
+    </span>
+    <b class="profwin__title">Профиль</b>
+    <span class="grow"></span>
+    <button class="icon-btn" id="prof-close" title="Закрыть" aria-label="Закрыть">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+  </div>
+  <div class="profwin__body" id="prof-root">
+    <div class="empty"><span class="spinner"></span></div>
+  </div>
+
+  <script type="module" src="scripts/profile.js"></script>
+</body>
+</html>

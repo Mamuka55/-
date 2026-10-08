@@ -1,0 +1,70 @@
+/* ============================================================
+   EPIC AI — дизайн-токены 
+   Единственный источник цветов. Значения синхронизированы с
+   shared/tokens.js, который используют backend и Electron.
+   ============================================================ */
+
+:root {
+  /* Accent */
+  --accent:        #ACE72E;   /* активные элементы, выбранные состояния, CTA, успех, подсветка найденного */
+  --accent-bright: #E2FF3F;   /* hover, focus, яркая подсветка */
+  --accent-mid:    #72CE1C;   /* иконки, вторичные акценты, маркеры */
+
+  /* Backgrounds */
+  --bg-base:    #0C0C0C;      /* самый тёмный фон */
+  --bg-dark:    #121416;      /* основная панель, карточки, шапки */
+  --bg-surface: #1A1A1A;      /* поля ввода, поверхности */
+  --bg-muted:   #2A2A2A;      /* вторичные поверхности */
+
+  /* Text */
+  --text-primary: #EEF9F4;
+  --text-muted:   #888888;
+  --text-subtle:  #666666;
+
+  /* States */
+  --danger:  #E74C3C;         /* ошибки и удалённый текст в diff */
+  --warning: #F87171;         /* предупреждения, «есть обновления» */
+  --info:    #3498DB;
+
+  /* Роли  */
+  --role-player:       #888888;
+  --role-helper:       #72CE1C;
+  --role-admin:        #3498DB;
+  --role-senior-admin: #9B59B6;
+  --role-deputy-chief: #E67E22;
+  --role-chief-admin:  #E74C3C;
+  --role-project-lead: #F1C40F;
+  --role-developer:    #E2FF3F;
+
+  /* Прозрачность главной панели  */
+  --panel-alpha: 0.82;
+  --surface-alpha: 0.78;
+  --muted-alpha: 0.72;
+  --base-alpha: 0.90;
+  --drop-alpha: 0.96;
+
+  --glass-panel:   rgba(18, 20, 22, var(--panel-alpha));
+  --glass-surface: rgba(26, 26, 26, var(--surface-alpha));
+  --glass-muted:   rgba(42, 42, 42, var(--muted-alpha));
+  --glass-base:    rgba(12, 12, 12, var(--base-alpha));
+
+  --stroke:        rgba(238, 249, 244, 0.08);
+  --stroke-strong: rgba(238, 249, 244, 0.14);
+  --stroke-accent: rgba(172, 231, 46, 0.35);
+
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-xs: 6px;
+
+  /* Длительности переходов фиксированные: отдельной настройки анимаций нет */
+  --t-fast: 120ms;
+  --t-base: 180ms;
+  --t-slow: 280ms;
+  --ease: cubic-bezier(.22,.61,.36,1);
+
+  --font: "Segoe UI", "Inter", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "Cascadia Mono", "JetBrains Mono", Consolas, "Courier New", monospace;
+}
+
+/* Blur отключаем одной переменной — настройка «blur»  */
+html[data-lowperf="true"] { --t-fast: 0ms; --t-base: 0ms; --t-slow: 0ms; }

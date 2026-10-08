@@ -1,0 +1,3357 @@
+<!DOCTYPE html>
+<html lang="ru" data-blur="true" data-animations="true" data-lowperf="false">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Epic AI — демо окна подтверждения</title>
+<!-- Демо-страница Epic AI: mock-backend встроен, сеть не требуется -->
+<style>
+/* ============================================================
+   EPIC AI — дизайн-токены 
+   Единственный источник цветов. Значения синхронизированы с
+   shared/tokens.js, который используют backend и Electron.
+   ============================================================ */
+
+:root {
+  /* Accent */
+  --accent:        #ACE72E;   /* активные элементы, выбранные состояния, CTA, успех, подсветка найденного */
+  --accent-bright: #E2FF3F;   /* hover, focus, яркая подсветка */
+  --accent-mid:    #72CE1C;   /* иконки, вторичные акценты, маркеры */
+
+  /* Backgrounds */
+  --bg-base:    #0C0C0C;      /* самый тёмный фон */
+  --bg-dark:    #121416;      /* основная панель, карточки, шапки */
+  --bg-surface: #1A1A1A;      /* поля ввода, поверхности */
+  --bg-muted:   #2A2A2A;      /* вторичные поверхности */
+
+  /* Text */
+  --text-primary: #EEF9F4;
+  --text-muted:   #888888;
+  --text-subtle:  #666666;
+
+  /* States */
+  --danger:  #E74C3C;         /* ошибки и удалённый текст в diff */
+  --warning: #F87171;         /* предупреждения, «есть обновления» */
+  --info:    #3498DB;
+
+  /* Роли  */
+  --role-player:       #888888;
+  --role-helper:       #72CE1C;
+  --role-admin:        #3498DB;
+  --role-senior-admin: #9B59B6;
+  --role-deputy-chief: #E67E22;
+  --role-chief-admin:  #E74C3C;
+  --role-project-lead: #F1C40F;
+  --role-developer:    #E2FF3F;
+
+  /* Прозрачность главной панели  */
+  --panel-alpha: 0.82;
+  --surface-alpha: 0.78;
+  --muted-alpha: 0.72;
+  --base-alpha: 0.90;
+  --drop-alpha: 0.96;
+
+  --glass-panel:   rgba(18, 20, 22, var(--panel-alpha));
+  --glass-surface: rgba(26, 26, 26, var(--surface-alpha));
+  --glass-muted:   rgba(42, 42, 42, var(--muted-alpha));
+  --glass-base:    rgba(12, 12, 12, var(--base-alpha));
+
+  --stroke:        rgba(238, 249, 244, 0.08);
+  --stroke-strong: rgba(238, 249, 244, 0.14);
+  --stroke-accent: rgba(172, 231, 46, 0.35);
+
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-xs: 6px;
+
+  /* Длительности переходов фиксированные: отдельной настройки анимаций нет */
+  --t-fast: 120ms;
+  --t-base: 180ms;
+  --t-slow: 280ms;
+  --ease: cubic-bezier(.22,.61,.36,1);
+
+  --font: "Segoe UI", "Inter", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "Cascadia Mono", "JetBrains Mono", Consolas, "Courier New", monospace;
+}
+
+/* Blur отключаем одной переменной — настройка «blur»  */
+html[data-lowperf="true"] { --t-fast: 0ms; --t-base: 0ms; --t-slow: 0ms; }
+
+
+/* ============================================================
+   EPIC AI — базовые стили (общие для всех окон)
+   : тёмное, полупрозрачное, компактное, мягкий blur,
+   минимум визуального шума, работа поверх игры.
+   ============================================================ */
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  background: transparent;          /* прозрачное окно Electron */
+  color: var(--text-primary);
+  font-family: var(--font);
+  font-size: 13px;
+  line-height: 1.45;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body { user-select: none; }
+
+/* Выделение текста разрешаем только в содержательных областях */
+.selectable, .answer-text, .source-text, .diff-view, pre, code, input, textarea {
+  user-select: text;
+}
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(238, 249, 244, 0.12);
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(172, 231, 46, 0.35); }
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { color: var(--accent-bright); }
+
+button { font-family: inherit; font-size: inherit; color: inherit; background: none; border: none; cursor: pointer; }
+input, textarea, select { font-family: inherit; font-size: inherit; color: inherit; }
+
+/* ---------- Утилиты ---------- */
+
+.glass {
+  background: var(--glass-panel);
+  border: 1px solid var(--stroke);
+}
+
+.muted { color: var(--text-muted); }
+.subtle { color: var(--text-subtle); }
+.accent { color: var(--accent); }
+.danger { color: var(--danger); }
+.warning { color: var(--warning); }
+.mono { font-family: var(--font-mono); }
+
+.row { display: flex; align-items: center; }
+.col { display: flex; flex-direction: column; }
+.gap-4 { gap: 4px; } .gap-6 { gap: 6px; } .gap-8 { gap: 8px; }
+.gap-10 { gap: 10px; } .gap-12 { gap: 12px; } .gap-16 { gap: 16px; }
+.grow { flex: 1 1 auto; min-width: 0; }
+.nowrap { white-space: nowrap; }
+.ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.center { display: flex; align-items: center; justify-content: center; }
+
+.divider { height: 1px; background: var(--stroke); flex: none; }
+.divider-v { width: 1px; background: var(--stroke); align-self: stretch; flex: none; }
+
+/* ---------- Кнопки ---------- */
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  height: 30px; padding: 0 12px;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--stroke);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease),
+              border-color var(--t-fast) var(--ease), transform var(--t-fast) var(--ease);
+  white-space: nowrap;
+}
+.btn:hover { border-color: var(--accent-bright); color: var(--accent-bright); }
+.btn:active { transform: translateY(1px); }
+.btn:focus-visible { outline: 2px solid var(--accent-bright); outline-offset: 1px; }
+.btn[disabled] { opacity: .4; pointer-events: none; }
+
+.btn--accent {
+  background: var(--accent);
+  border-color: var(--accent-bright);
+  color: #0C0C0C;
+}
+.btn--accent:hover { background: var(--accent-bright); border-color: var(--accent-bright); color: #0C0C0C; }
+
+/* П.6: у кнопок ВИДНА обводка — ghost больше не сливается с фоном. */
+.btn--ghost { background: rgba(255,255,255,.03); border-color: rgba(255,255,255,.28); color: var(--text-primary); }
+.btn--ghost:hover { color: var(--accent-bright); background: rgba(226, 255, 63, 0.06); border-color: var(--accent-bright); }
+
+.btn--danger { border-color: rgba(231, 76, 60, .4); color: var(--danger); }
+.btn--danger:hover { background: rgba(231, 76, 60, .14); border-color: var(--danger); color: #fff; }
+
+.btn--sm { height: 24px; padding: 0 8px; font-size: 10px; }
+.btn--lg { height: 38px; padding: 0 18px; font-size: 12px; }
+
+.icon-btn {
+  width: 30px; height: 30px; flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: var(--radius-xs);
+  color: var(--text-muted);
+  transition: color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+}
+.icon-btn:hover { color: var(--accent-bright); background: rgba(226, 255, 63, 0.08); }
+.icon-btn.is-active { color: var(--accent); }
+.icon-btn svg { width: 16px; height: 16px; }
+
+/* ---------- Бейджи / метки ---------- */
+
+.badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  height: 20px; padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid var(--stroke);
+  background: var(--glass-surface);
+  font-size: 10px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--text-muted);
+}
+.badge .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
+.badge--accent { color: var(--accent); border-color: var(--stroke-accent); background: rgba(172,231,46,.08); }
+.badge--danger { color: var(--danger); border-color: rgba(231,76,60,.35); background: rgba(231,76,60,.10); }
+.badge--warning { color: var(--warning); border-color: rgba(248,113,113,.35); background: rgba(248,113,113,.10); }
+.badge--mid { color: var(--accent-mid); border-color: rgba(114,206,28,.35); background: rgba(114,206,28,.10); }
+
+.tag {
+  display: inline-block; padding: 1px 6px; border-radius: 4px;
+  background: rgba(238,249,244,.06); color: var(--text-muted);
+  font-size: 10px; letter-spacing: .03em;
+}
+
+/* ---------- Заголовки секций ---------- */
+
+.section-title {
+  font-size: 10px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase;
+  color: var(--text-subtle);
+}
+
+/* ---------- Поля ввода ---------- */
+
+.field {
+  height: 30px; padding: 0 10px;
+  background: var(--glass-surface);
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius-xs);
+  color: var(--text-primary);
+  transition: border-color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+  width: 100%;
+}
+.field::placeholder { color: var(--text-subtle); }
+.field:hover { border-color: var(--stroke-strong); }
+.field:focus { outline: none; border-color: var(--accent); background: rgba(26,26,26,.95); }
+.field:focus-visible { box-shadow: 0 0 0 2px rgba(226,255,63,.18); }
+textarea.field { height: auto; padding: 8px 10px; resize: vertical; line-height: 1.5; }
+select.field { appearance: none; padding-right: 26px; cursor: pointer; }
+
+/* ---------- Переключатель ---------- */
+
+.switch { position: relative; width: 34px; height: 18px; flex: none; cursor: pointer; }
+.switch input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+.switch .track {
+  position: absolute; inset: 0; border-radius: 999px;
+  background: var(--bg-muted); border: 1px solid var(--stroke);
+  transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+.switch .thumb {
+  position: absolute; top: 3px; left: 3px; width: 12px; height: 12px; border-radius: 50%;
+  background: var(--text-muted);
+  transition: transform var(--t-base) var(--ease), background var(--t-fast) var(--ease);
+}
+.switch input:checked ~ .track { background: rgba(172,231,46,.22); border-color: var(--stroke-accent); }
+.switch input:checked ~ .thumb { transform: translateX(16px); background: var(--accent); }
+.switch input:focus-visible ~ .track { box-shadow: 0 0 0 2px rgba(226,255,63,.25); }
+
+/* ---------- Спиннер ---------- */
+
+.spinner {
+  width: 14px; height: 14px; flex: none;
+  border: 2px solid rgba(172,231,46,.22);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 700ms linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---------- Пульсация статуса ---------- */
+
+.pulse { animation: pulse 1600ms ease-in-out infinite; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+
+/* ---------- Скролл-области ---------- */
+
+.scroll { overflow-y: auto; overflow-x: hidden; }
+.scroll::-webkit-scrollbar { width: 6px; }
+
+/* ── Фирменный знак EpicRP (раунд 28): единый data-URL для всех окон ── */
+.brand-logo {
+  display: inline-block; width: 100%; height: 100%;
+  background: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAD8AAABgCAYAAACqh6r9AAASZElEQVR42u1ce3BcZ3X/ne9+d3clrSRLFBITmBQKbklCIbUKzQB1HJw6dhLJdrLqNH2Ay8OUEjJ0SmHIlNVSpkyhnYHSzhAPTUkIj+ymTQixLTsJQlPCqzLhZfPIw05IQkhkPXel3Xu/75z+ce9375UobSxLRgr+bI3GY82ufuec75zf+Z1zFzhzzpwz58w5c86cM+fZemit/uIioC9jkwcAF2PUEkF+JTwmsjxOo7UHvKyIKrz/x9fmi2c9ck3Aoubm1n+u/5y9cyKgk4kAtZaAV6slj6jCdz1yTU/n+ofvLXTxjZ3r5JNa/+Su70spNxQ5k5514KtS8gYHa/b2YwPr1vVOH8gV5TUTJ5rBxIlm2NaJzY+Oz7+iQuBqtfSMMek1A5xq9u7Hdjyn2Gv3e23yqsmJ0BCpnAiztcwQaQcAlJ7566q1AvzgT3c+r6MnuNtv41dNT4RGKWgBQwQQgSIIn+xr67UA/NAj/c/v7G4d9At0wdRkaKBIMwtEABZAAJglvP6qBS9S8ohqdmR85wva28NDXkG9bHoqMEQxcETAWQRWBCakZwd4B/y+J3ad67cHd6sCXlqfNoYUacuAQOJwj+qaCGCtR2se/MjIJk1UM1/92ZUv8buDgyonL67PWCMEzQKIRF4XRgJclohkVYEfkU16M42akcd3/VauOzhEWl44O20sFDRzBJQhYCYwopAXEbAQPLGyZsE74F9/ov88vzc4BM3n1OvWkiIvAgmw8AIOI4iAyxJdr1cT8K9ODLy80GEOsof1DrhliTyM9H6LCDgb+gDMEvK9Wi3A73uq/8K2DnOPeLK+3jCWFHnC7o4TJHJvBDj2NiP+WmI/p1cD8MNT/X26zQ6zkuc0Gs7jKXBmAUMgHHnf3Xd2WR8EGFk7nnfAv3Hiioty7XxIlDxnbt5aOI8zx3caKeD43y4HQAhC0d1fM9leZJMmGjWHJ3b9fr4YfNFAuubnrQWRl4ADwKDYw4BYSgwQ/YmMQhF6mCVQvNPu+bGxjT7RqDk8OfD6QjHYb2G7mk3LDngUxjH4mNDEfx2PX/AVGQtiFLxV7fmxsY1+X9/h8Nv1ga25vLk9ZG6bbzELkbIJQBfaAIOj5JZldYgiwcLVehYAylf+DACgtgrBp8B3XJHPh7cFzPlmIAlwBqLElgEvIAgLLOLs7q5AbATLMB09Ws9P4vCGFzz/e2WBGqSaXVVhPyYx8MbAVYW8uT2wNtcKmIWgklB3bA0ZJicCjsucQMCUJj5rYQpFpZsNPJzjjsE+2hsC5dV158fGNvp9dDj8zuyua9pyttayxguMSNbjcc7KcPU4m3Pm/sc/IAJYhil0Kh205EeNce+Sq8/9z4fLUlYVqpxUT0+nI6vfX+/f3dHGNzaN4VYgBEUUMtLwjkPdutCHgDltWdMcQDCWTb7L0605daT5U2/rGy/c97jr+1dNth+JgX+3MbCnq0NubIaGg1CIFJHNZG9QprTF4Z5cAckaCDBWTKHL1615+t78eOeWUwG+YuAdgfl+Y+Daznb5RKMV2MCAQIqyYISQ0FYGEPk8oq+cDUoCDMO0dfu62ZD7J37avmX3BbUnTwX4ioBPgM/1/1VnO/9zvdWyxkIRgaIShTRjS1TLGS7hIaKwSQ2PEqAxZNq7c7o1i28+/WjbpW9/5e1PVaunBnzZwTvgR5r97+5qwz/NtAJrmJQQkcvaLHFzQoAIJ3XbRQMyYS8ArBHT0ePr+TrfN/lE8Q+uffUdJ6rVSMY+1d93ecALyAH/wdzA+7ry+PBsEBpmUgIQZ9hYmgzjO520pq5rS9tXyzAdvXk9NyujT53ovGxPX23aAa9WS15ZoKKv8pJw0Kln9GhguJlGzQ+bV7y/M68qU0FojIUnRGSZI0bGBIu0llsbf48vvxWBZYnvOxBaNp09eV2fknvHH/f69/TdNedGVe77YgfgJIeVarmA/7h15d9151VlOgiMjYGz82KcxeEyeiJCRGmfReB+lgUwlk1nb07PTeOQPVa8Mgs8qiIVvvmhKy/9zBPbRm5+fNvIjQ9d/joQ5GQjgE4FOFBSRDX7QGvgQ105eu+JoGUMiycAiRCsADZuQ222ZnPE2zluXjgiLmAhWOawozfnNyZlOD/zkh3bN3y85QjMDWMb/T19h8ObH76spDvkVvaEyCPUJ82UNv6GN710eFwAPNNhpTp14Ds/3JXDeyeClmGBjoKP0r6bM6VNnCKTdm2MTHZnDos9vl+flP3heHHgfwN+07Htu3RRPt80odRnjZmZDEPdRuvmtX0ZCFKrPfNZnTol4PM7Ptadw7sng8CwQEustrDzuCttkhIaSCpKpF0cgSFhsTfnN6bpi08/9sIdpfNr4WLgtxzbvitXtNVWYMiEAIE0AI+ZRImSFc32IqBaDPx4a9e/9hS8d0YeJx0lr7Tx+LneO6GuqTE4nbqExXU5vzGF27uP/u6ut27ca4YAygL/3IMx8JZR1ogAUNE1EjCEzEqWungbggapZh8Kdu4t5vD2ibAZCqBdByacCWWntrrGJau6xgKkWIAZYUdPzp+ZkNtueUdH6eKLKzYCjtTjD27f5XVztRmwYgsBSLnXd4bWKwW+LFBDABGBjwUDn+r28ZYTraaxIn46PEAKOBYfHYd3Gd0mbWrC28Nib86vT/Dnd6zfP1it1nhoaCHwzx67fGe+W6qt0CobcuxxZ+ToLslKkZyylNUQIBgq43g48LlOn94wEbRCIWggLVGpnOzqdybc4348+ZkYeGdv3q+P8y0DZx/4oyEhAoBKZSFwv8i1ZmiUCVmEELXBru1lSqRsY8LlFTCjHZcKXzxS1ruv//atRU27TgStUEC+ZO54AjIOwSShkUtosnCuJhJ29eb86XH7qf71B3bHkSVEEAf8Mw9tuyrXaW9tBj/v8cigFNPjyLjLOqJ2d1zk2twj4beqnb7qHw+aoQC+QGCFYlAq1dsyTUvyOjEP4zQKTOev5fyZp+Tfrjz7wJtFygqoLAD+2YcuuzrXJbe2AkvGRB5nN6yIdT03ppJF77dMYV8mIvDx8PjeXl/1jwetCDi58uW6MEn19czIOMrunBknAyJsO3vzuj5Oey8/68Cbq9WStxj4549vuyrfjVuD0JK1UVZ3YymbRJBAYtosEAgBgL88ni/HVPLRxp+dYzB+zTgHVkAaCSGRJPQ4joIIuCTzs4TIINLhmIXbu3NeY0I+se25+/+iKiWvhBovBp7rlGorNGStiADKva6jx1jUIHHi+nB5PD+EigBA03qBCAWAIvcW0eAQSQOy4M5zPDpCdqoCCAvn25San7E/nvnSG99RFqjFwG87vu2qQieqYWiJQ4iAVFbDF1nYCbpeRtJJ5fKAJ4JUpeRt6Pr3pyH5D3apvBKAY28kQgMWZXROxsackaAIAoiXIzDTY4ODg/b8IyX95S9v8m6QCPh//OSyq/1OrgahJTYS1fHMfebs+8Srdsl7UmScVhz8y5LwBqlmq1LyfoNqH/rhXL9fbMtVJpst63r0SEpOBwqcyfhJZCSRKqoxy+IXvIsOPLnjom1n177m3uf2x7ddowr86SBgsoZFiFQyrJCsqutyByfsMJG9ltie/Z+lbpBqNt6P+cCRuf75YlvuwzNzgbUCBSJyb5yUHwgkRiziCIhACMRWxCpug24e2Pezbf8SCB8XwmbP52taLRZrBKRIWU4jKAl3lkWNESV5x4XYimxjEdVsJEHf+ZHvNC4P2ttzH63PR7qcUKTEpiQmnahKpmsWAQigVouhNHUXur3rfSFYBmamjAAKUCAWiYq9OOgLvc8Zg6b9g4BFRCulVoTeEo0akU36FR37PtaYU28rFHIeCGItS7I0sIDExInPJT2OensQYEKRmcnQzE4b05gKLRFIiImFF3SAkuEGSKhzBNx1jCIkrEiMEeLQexIAjpTOW/7FY2eACzu+cMP8nPrzfJtW8ESsFYm8lXrE0U+mTFS4KQwJAdAi0ELkiRMs43G0xA1S4lXmVMvPjKbjfsF09OQ92/Juuf63D/3wZKc2J50q3BTma9NX/oku2JubgYExkCh2JVqQSAaPEQXlxYPGmPlFHCH6OZsRNRPVx01tAFjhmFdE/2+tmPYeX89PyfBZhXN2Hv/1mwJHkVdMzCAaNWNjG/2Lur94SzBHg9r3WGmQsHAU6pQ0OpBUw5NMHpAMP8fi9teFudCiu54lNhx29Po6mFHDbcf0jt0vuql5ssCXLGP19R0Ox8Y2+q/p2Xdba07t0tozKkfKmIjJp2BowRYVst/j/3MsMZnEyqJsn+QTJ2eL6ViX81szMpx7aMOO6y4fbpUFaimPmSxZve3rOxzeMLbRv7h3353zs96Ap715XVDKsLCru7zgF09LFy9ibGmCy66eUKYdTnQCU+zxdTgjw7kH9Y7rtn+8VWaoCoGXguGUpOs9fYfDEdmktzzvrgPzU7hCKdXwC0pZI8wZT8uillbghI50oSgrdyUER1K6LALT0ZvTzWkc9B7UscfLSwa+LBObzTRqRmST3rr+wJeaU2obkZrJFUiJFevkK2TAueSX8n9euG+TaYEdKrbM7T2+bk3LAe9Bb+C6y4dbZT75efyKjKucAbads++/grpsBWHSb1ceG7bIdGMLa3aGG3C6UOhEkkwPYQtFrVqz/CU8oHZet204cMBFQKfypNWyDSqdAbafPfz1YFZfCqbxXIfnMbNN7n6S/Cij4lImB6hEqODEZFBhCGOb3juv2z7cqqKkKlThqpQ8oijD/9Jmdb9oUnvXsYFXej3BMBOfNV+3FgQv7uthQTBOduZoTieZGh4lOYZEMh1Zq1q+fu659x224+edd8TD+UdNhcD/8JX+Tuur3PtefceJdCrwS5zPuwi44kVf+PbcuNoilp7IFz2PGVaE4hUyWbCKIqIW7NFKogUSGSs230l5KyeurQ3WbOWCo0GFwH//gy27zVn1o2HPzAPX33/J3wCncVb3/0bAyCa9efOouePh/t9U3cFBaDq3PmsMA9pNZF2/z3EpzDZJzNHUJy6R4uUUhU3aL0bdb8j0ee3YGoYME18XzHkbPvg79zxwMhR3xXZyNm8eNeWRTXrHi+/8UVD3LjGhPNjWqbVlMen9V0mzkgqfaXeYqjVErXkWr4O2+724XnfQ1mbdcjAvEjbZCkRCknMA4Gjt6Op4qLCyedRUpeRdfe6+hxsT2Bw2cbTQ5WlrYZKe3HWFkhFFEiNENDl+oIjmZ4xtTBjTrFsLIgVFxIi+QCe/fbvie3hOEfrTDcOPNeaKrzfz+G57t9Zsxbh0zot5PRL5C8Kc8H+APBA0QF72sTIAYHPyes5p2cB0Btj9otqTzdmuLcE8f6ttnactSxwBtJDhIbuYGF8NpjhDZXb23IR3+XX7FTBAteS9aUPt6WACl7bm8M32db42DOMmO1mRMtsM2UViZrSkqJLBBQsQLmFUeVpXzt0i0VsuODQx83Rha6shX23v0dpaNpzZqJZYC5R4zg9JByNm0dZmkiPMGnjGZnCwZstSVu+68AtTk4/mLwvqPNq+TmtmMcloO6MFQtJeNQVLP7d/v6rDfkEVoAqXpaze89o7Z9XT/vZWXe5t781pBsIISGoEzoY80lmBW0l3BjNrBXzWAHv67porHl9/RVCXA8V1vs9AmKq2qdfdLg9Hemgy63flQa/2O/+LDLB7803NwsS5A80ZuaPYk/NZEEZZPtUEOKPmJNMidy0EMGYNPleXRMDGvWb60793VXPKVtt6fJ9FwjTDU7LC5hb0I42QkjywlL2UVfHhARWqcHkIBFTw1xvu/sPmJH+2rSe6AhYuxDNbXkllSDX8ZR9XnVYDVMAiIAyJei8d/OMPHNkStq3z3zAzERiI0m5pMe3/HbmJJLI18WjZ/y2LQ4bi1vT959/zxuYE721bl9MMMYmqS07alswq29KeKlx1n5kRGaAipWrJG3r5oT2tKfvxQndOs5BJGh03+uZkfZWsYrXmwTsD1Eo1LlVL3gdffvc7W5P2o209Oc1Exrpd3UgHEOUp2IAtWX0MAM47UnsWfEiQM4CUvA+98u53NSfsR/JdWjNgmCFWRFhgcp2+IuNV9r7unkdL1ZJXqWDlZnWn/QioipIapJq97puXfMDv1n/bmAlhGch1+WiesP/4ydfe++5SteTVluHpi1VpgPLIJg0A135jy3ve8a0ts2/770tm3vqVS8oAUKqWPKzhT3h7Rqcs0TX9y69sef5bR1+3HgDK5bX1+V6naIBUoY09/qt1ymWo5fpMvDPnzDlzzpwz59l+/gd7gDObn3HV0QAAAABJRU5ErkJggg==") center / contain no-repeat;
+}
+
+
+/* ============================================================
+   EPIC AI — основная панель и настройки.
+   Визуальный язык по референсу пользователя: компактный бар,
+   сегмент-контрол, пилюля пользователя, настройки-дропдаун
+   с сайдбаром, кейкапы, тумблеры, аккордеон FAQ.
+   Палитра — из (shared/tokens.js): акцент #ACE72E.
+   ============================================================ */
+
+:root {
+  --panel-h: 56px;
+  /* Альфа-каналы поверхностей приходят из настройки «Прозрачность»
+     (applyVisualSettings ставит --panel-alpha / --surface-alpha / …). */
+  --bar-bg: rgba(22, 22, 25, var(--panel-alpha));
+  --drop-bg: rgba(24, 24, 27, var(--drop-alpha));
+  --card-bg: rgba(35, 35, 39, var(--surface-alpha));
+  --card-bg-solid: #232327;
+  --line: rgba(255, 255, 255, 0.07);
+  --line-strong: rgba(255, 255, 255, 0.12);
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: transparent;
+}
+
+/* ═══════════════════════ БАР ═══════════════════════ */
+
+.panel {
+  position: relative;
+  z-index: 1;
+  flex: none;
+  background: var(--bar-bg);
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  /* Внешняя тень-ореол убрана (требование пользователя: «фон за приложением»
+     не должен быть виден на игре). Внутренний блик оставлен — он внутри окна. */
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .04);
+}
+
+.panel__in {
+  height: var(--panel-h);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 9px;
+}
+
+.panel.is-busy { border-color: var(--stroke-accent); }
+
+/* ---------- Логотип ---------- */
+
+.logo {
+  flex: none;
+  display: flex; align-items: center; justify-content: center;
+  -webkit-app-region: drag;
+}
+.logo__badge {
+  width: 36px; height: 36px; border-radius: 10px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: none; border: none; box-shadow: none;
+}
+.logo__badge .brand-logo { width: 22px; height: 33px; }
+
+/* ---------- Строка запроса ---------- */
+
+.query {
+  position: relative;
+  flex: 1 1 auto; min-width: 90px;
+  height: 38px;
+  display: flex; align-items: center;
+  padding: 0 6px 0 13px;
+  background: rgba(35, 35, 39, .9);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  transition: border-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
+  -webkit-app-region: no-drag;
+}
+.query:hover { border-color: var(--line-strong); }
+.query.is-focused {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(172, 231, 46, .12);
+}
+.query__input {
+  flex: 1 1 auto; min-width: 0; height: 100%;
+  background: transparent; border: none; outline: none;
+  color: var(--text-primary);
+  font-size: 13px;
+  caret-color: var(--accent-bright);
+  user-select: text;
+}
+.query__input::placeholder { color: var(--text-subtle); }
+
+.qbtn {
+  flex: none;
+  width: 26px; height: 26px; margin-left: 3px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 7px;
+  color: var(--text-subtle);
+  transition: color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+}
+.qbtn:hover { color: var(--text-primary); background: rgba(255, 255, 255, .06); }
+.qbtn svg { width: 15px; height: 15px; }
+.qbtn.is-on { color: var(--danger); background: rgba(231, 76, 60, .14); animation: pulse 1200ms ease-in-out infinite; }
+#query-clear[hidden] { display: none; }
+
+.query__spin { position: absolute; right: 34px; top: 50%; transform: translateY(-50%); display: none; }
+.panel.is-busy .query__spin { display: block; }
+.panel.is-busy #mic-btn { visibility: hidden; }
+
+/* ---------- Сегмент-контрол режимов ---------- */
+
+.modes {
+  flex: none;
+  display: flex; align-items: center; gap: 2px;
+  padding: 3px;
+  background: rgba(35, 35, 39, .9);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  -webkit-app-region: no-drag;
+}
+.mode {
+  height: 30px; padding: 0 15px;
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-size: 12px; font-weight: 600; letter-spacing: .01em;
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.mode:hover { color: var(--accent-bright); }
+.mode:focus-visible { outline: 2px solid var(--accent-bright); outline-offset: 1px; }
+.mode.is-active {
+  background: var(--accent);
+  color: #101208;
+  font-weight: 700;
+  box-shadow: 0 2px 10px rgba(172, 231, 46, .3);
+}
+.mode.is-active:hover { background: var(--accent-bright); color: #101208; }
+
+/* ---------- Кнопки-иконки ---------- */
+
+.icon-btn {
+  flex: none;
+  width: 36px; height: 36px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 10px;
+  color: var(--text-muted);
+  transition: color var(--t-fast) var(--ease), background var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
+  -webkit-app-region: no-drag;
+}
+.icon-btn:hover { color: var(--text-primary); background: rgba(255, 255, 255, .07); }
+.icon-btn:focus-visible { outline: 2px solid var(--accent-bright); outline-offset: 1px; }
+.icon-btn svg { width: 17px; height: 17px; }
+.icon-btn.is-active {
+  color: var(--accent);
+  background: rgba(172, 231, 46, .12);
+  box-shadow: 0 0 0 1.5px var(--accent);
+}
+#pin-btn[aria-pressed="true"] { color: var(--accent); }
+#pin-btn[aria-pressed="true"] svg { fill: rgba(172, 231, 46, .28); }
+#pin-btn[aria-pressed="false"] { color: var(--text-subtle); }
+
+/* ---------- Пилюля пользователя ---------- */
+
+.userpill {
+  flex: none;
+  max-width: 168px;
+  height: 38px; padding: 0 10px 0 5px;
+  display: inline-flex; align-items: center; gap: 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(172, 231, 46, .45);
+  background: rgba(172, 231, 46, .10);
+  color: var(--text-primary);
+  transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+  -webkit-app-region: no-drag;
+}
+.userpill:hover { background: rgba(172, 231, 46, .18); border-color: var(--accent); }
+.userpill[hidden] { display: none; }
+.userpill__ava {
+  width: 27px; height: 27px; flex: none; border-radius: 50%;
+  overflow: hidden; display: inline-flex; align-items: center; justify-content: center;
+  background: var(--bg-muted); color: var(--accent-mid);
+  font-size: 10.5px; font-weight: 800;
+}
+.userpill__ava img { width: 100%; height: 100%; object-fit: cover; }
+.userpill__name { font-size: 12.5px; font-weight: 700; }
+/* П.2: стрим-режим размывает настоящее фото вместо заглушки-силуэта. */
+.avatar--blurred { filter: blur(7px) saturate(.85) brightness(.9); transform: scale(1.15); }
+
+/* ---------- Меню пользователя ---------- */
+
+.menu {
+  position: absolute; top: calc(var(--panel-h) + 6px); right: 9px; z-index: 40;
+  width: 236px;
+  background: var(--drop-bg);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  /* Тень-ореол вокруг меню убрана (требование пользователя: за приложением
+     не должно быть «фона») — границу видно и так. */
+  padding: 6px;
+  animation: drop var(--t-base) var(--ease);
+}
+.menu[hidden] { display: none; }
+@keyframes drop { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+
+/* Шапка меню — кнопка «Профиль и аккаунт» (открывает окно профиля).
+   Роль-пилюля стоит ПОД аватаром в левой колонке и больше не наползает
+   на имя/ник (требование пользователя). */
+.menu__head {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; padding: 8px;
+  border-radius: 9px; cursor: pointer; text-align: left;
+  transition: background var(--t-fast) var(--ease);
+}
+.menu__head:hover { background: rgba(255, 255, 255, .05); }
+.menu__head:focus-visible { outline: 2px solid var(--accent-bright); outline-offset: 1px; }
+.menu__id {
+  flex: none;
+  display: flex; flex-direction: column; align-items: center; gap: 5px;
+  width: 64px;
+}
+.menu__ava {
+  width: 34px; height: 34px; flex: none; border-radius: 50%;
+  overflow: hidden; display: inline-flex; align-items: center; justify-content: center;
+  background: var(--bg-muted); color: var(--accent-mid); font-weight: 800; font-size: 12px;
+}
+.menu__ava img { width: 100%; height: 100%; object-fit: cover; }
+/* Роль под аватаром: компактнее обычной пилюли, чтобы влезть в колонку */
+.menu__id .role-pill {
+  height: 16px; padding: 0 6px;
+  font-size: 8px; letter-spacing: .04em;
+  max-width: 64px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+}
+.menu__id .role-pill .dot { width: 4px; height: 4px; }
+.menu__id #menu-role:empty { display: none; }
+.menu__who { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
+.menu__who b { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.menu__who i { font-style: normal; font-size: 10.5px; color: var(--text-subtle); }
+.menu__sep { height: 1px; background: var(--line); margin: 3px 6px; }
+.menu__item {
+  width: 100%; text-align: left;
+  padding: 8px 9px; border-radius: 8px;
+  font-size: 12px; color: var(--text-muted);
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.menu__item:hover { background: rgba(255, 255, 255, .06); color: var(--text-primary); }
+.menu__item[hidden] { display: none; }
+.menu__item--danger:hover { background: rgba(231, 76, 60, .14); color: var(--danger); }
+
+/* ═══════════════════════ РАЗВЁРНУТАЯ ОБЛАСТЬ ═══════════════════════ */
+
+.expander {
+  position: relative;
+  z-index: 1;
+  flex: 1 1 auto; min-height: 0;
+  display: none;
+  margin: 8px 0 0;
+  border-radius: 13px;
+  border: 1px solid var(--line);
+  background: var(--drop-bg);
+  /* Тень-ореол убрана: за окном не должно быть «фона» (требование пользователя) */
+  overflow: hidden;
+}
+.expander.is-open { display: flex; flex-direction: column; animation: drop var(--t-base) var(--ease); }
+
+.expander__pane { display: flex; flex-direction: column; min-height: 0; flex: 1 1 auto; }
+.expander__pane[hidden] { display: none; }
+
+.expander__head {
+  flex: none;
+  display: flex; align-items: center; gap: 10px;
+  height: 40px; padding: 0 12px;
+  border-bottom: 1px solid var(--line);
+}
+.expander__body { flex: 1 1 auto; min-height: 0; overflow: hidden auto; padding: 14px 16px; }
+
+/* ---------- Ответ AI ---------- */
+
+.answer { display: flex; flex-direction: column; gap: 12px; }
+.answer__verdict { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.answer__block { display: flex; flex-direction: column; gap: 5px; }
+.answer__label { font-size: 10px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--text-subtle); }
+.answer__text { font-size: 13px; line-height: 1.65; white-space: pre-wrap; }
+.answer__basis {
+  font-size: 12.5px; line-height: 1.65; color: var(--text-muted); white-space: pre-wrap;
+  background: var(--card-bg); border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 9px; padding: 9px 12px;
+}
+.answer__sources { display: flex; flex-wrap: wrap; gap: 6px; }
+.src-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 26px; padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--card-bg);
+  color: var(--text-muted); font-size: 11px;
+  transition: border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.src-chip:hover { border-color: var(--accent); color: var(--accent); }
+.src-chip b { color: var(--accent-mid); font-weight: 800; font-family: var(--font-mono); }
+
+/* ---------- Feedback ---------- */
+
+.feedback { display: flex; align-items: center; gap: 8px; }
+.vote {
+  width: 34px; height: 30px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: var(--card-bg);
+  font-size: 14px;
+  transition: transform var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+}
+.vote:hover { transform: translateY(-1px); }
+.vote[data-vote="up"]:hover, .vote[data-vote="up"].is-on { border-color: var(--accent); background: rgba(172, 231, 46, .15); }
+.vote[data-vote="down"]:hover, .vote[data-vote="down"].is-on { border-color: var(--danger); background: rgba(231, 76, 60, .15); }
+.vote[disabled] { opacity: .4; pointer-events: none; }
+.feedback__hint { font-size: 11px; color: var(--text-subtle); }
+
+/* ---------- Форма ошибки ---------- */
+
+.report-form { display: none; flex-direction: column; gap: 10px; }
+.report-form.is-open { display: flex; animation: drop var(--t-base) var(--ease); }
+.report-form__title { font-size: 12px; font-weight: 800; letter-spacing: .04em; color: var(--warning); }
+.radios { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; }
+.radio {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 9px; border-radius: 8px; cursor: pointer;
+  font-size: 12px; color: var(--text-muted);
+  border: 1px solid transparent;
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+.radio:hover { background: rgba(255, 255, 255, .05); color: var(--text-primary); }
+.radio:has(input:checked) { background: rgba(172, 231, 46, .10); border-color: rgba(172, 231, 46, .35); color: var(--text-primary); }
+.radio input { position: absolute; opacity: 0; pointer-events: none; }
+.radio__mark {
+  width: 14px; height: 14px; flex: none; border-radius: 50%;
+  border: 1.5px solid var(--line-strong);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.radio__mark::after {
+  content: ""; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--accent); transform: scale(0);
+  transition: transform var(--t-fast) var(--ease);
+}
+.radio input:checked ~ .radio__mark { border-color: var(--accent); }
+.radio input:checked ~ .radio__mark::after { transform: scale(1); }
+.report-form__actions { display: flex; align-items: center; gap: 8px; }
+.form-error { font-size: 11px; color: var(--danger); min-height: 14px; }
+
+/* ═══════════════════════ НАСТРОЙКИ: ОБОЛОЧКА ═══════════════════════ */
+
+.set-shell { flex: 1 1 auto; min-height: 0; display: flex; }
+
+.set-side {
+  flex: none; width: 216px;
+  display: flex; flex-direction: column;
+  border-right: 1px solid var(--line);
+  background: rgba(18, 18, 21, .55);
+  padding: 10px 9px 8px;
+}
+
+.side-user { display: flex; align-items: center; gap: 9px; padding: 4px 6px 12px; }
+.side-user__ava {
+  width: 36px; height: 36px; flex: none; border-radius: 50%;
+  overflow: hidden; display: inline-flex; align-items: center; justify-content: center;
+  background: var(--bg-muted); color: var(--accent-mid); font-weight: 800; font-size: 12px;
+  border: 1px solid var(--line-strong);
+}
+.side-user__ava img { width: 100%; height: 100%; object-fit: cover; }
+.side-user__name { font-size: 12.5px; font-weight: 700; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.side-user__nick { font-size: 10.5px; color: var(--text-subtle); }
+
+.set-nav { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+
+.settings__nav-item {
+  display: flex; align-items: center; gap: 9px;
+  height: 34px; padding: 0 10px;
+  border-radius: 9px;
+  color: var(--text-muted); font-size: 12.5px; font-weight: 600;
+  text-align: left; width: 100%;
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.settings__nav-item:hover { background: rgba(255, 255, 255, .05); color: var(--text-primary); }
+.settings__nav-item.is-active { background: rgba(172, 231, 46, .13); color: var(--accent); }
+.settings__nav-item svg { width: 15px; height: 15px; flex: none; opacity: .95; }
+
+.side-foot {
+  flex: none; padding: 8px 8px 2px;
+  border-top: 1px solid var(--line);
+  display: flex; align-items: center; gap: 6px;
+  font-size: 10px; color: var(--text-subtle);
+}
+.side-foot .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+.side-foot .dot.err { background: var(--danger); box-shadow: 0 0 8px var(--danger); }
+
+.set-main { flex: 1 1 auto; min-width: 0; min-height: 0; padding: 16px 20px 20px; }
+
+/* ---------- Страницы настроек: строки и карточки ---------- */
+
+.set-title { font-size: 15px; font-weight: 800; margin-bottom: 3px; }
+.set-sub { font-size: 11px; color: var(--text-subtle); margin-bottom: 14px; line-height: 1.6; }
+
+.opt-card {
+  background: var(--card-bg);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  padding: 2px 14px;
+  margin-bottom: 12px;
+}
+
+.opt-row {
+  display: flex; align-items: center; gap: 14px;
+  min-height: 46px; padding: 9px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, .045);
+}
+.opt-row:last-child { border-bottom: none; }
+.opt-row__label { flex: 1 1 auto; min-width: 0; }
+.opt-row__name { font-size: 12.5px; font-weight: 600; }
+.opt-row__desc { font-size: 10.5px; color: var(--text-subtle); margin-top: 2px; line-height: 1.5; }
+.opt-row__control { flex: none; display: flex; align-items: center; gap: 8px; }
+
+/* ---------- Кейкапы ---------- */
+
+.kbd-row { display: inline-flex; gap: 4px; align-items: center; }
+.kbd {
+  min-width: 24px; height: 24px; padding: 0 7px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 7px;
+  background: linear-gradient(#2e2e33, #26262b);
+  border: 1px solid #3d3d44;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, .45), inset 0 1px 0 rgba(255, 255, 255, .07);
+  color: #e6e6e6; font-size: 11px; font-weight: 700; font-family: var(--font);
+  letter-spacing: .02em;
+}
+.kbd--wide { padding: 0 10px; }
+.kbd-row.is-editable { cursor: pointer; }
+.kbd-row.is-editable:hover .kbd { border-color: var(--accent); color: var(--accent); }
+.kbd-row.is-listening .kbd { border-color: var(--accent-bright); color: var(--accent-bright); animation: pulse 1000ms ease-in-out infinite; }
+
+/* ---------- Тумблер ---------- */
+
+.switch { position: relative; width: 40px; height: 22px; flex: none; cursor: pointer; }
+.switch input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+.switch .track {
+  position: absolute; inset: 0; border-radius: 999px;
+  background: #3a3a40; border: 1px solid var(--line-strong);
+  transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+.switch .thumb {
+  position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%;
+  background: #9a9aa0;
+  transition: transform var(--t-base) var(--ease), background var(--t-fast) var(--ease);
+}
+.switch input:checked ~ .track { background: var(--accent); border-color: var(--accent); }
+.switch input:checked ~ .thumb { transform: translateX(18px); background: #101208; }
+.switch input:focus-visible ~ .track { box-shadow: 0 0 0 3px rgba(226, 255, 63, .25); }
+
+/* ---------- Селект и слайдер ---------- */
+
+.sel {
+  height: 30px; padding: 0 26px 0 10px;
+  appearance: none;
+  background: var(--card-bg-solid) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23888888' stroke-width='2.4' stroke-linecap='round'><path d='M6 9l6 6 6-6'/></svg>") no-repeat right 7px center / 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  color: var(--text-primary); font-size: 12px;
+  cursor: pointer;
+}
+.sel:hover { border-color: var(--accent); }
+.sel:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(172, 231, 46, .15); }
+
+.range { -webkit-appearance: none; appearance: none; width: 138px; height: 4px; border-radius: 4px; background: #3a3a40; outline: none; }
+.range::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 14px; height: 14px; border-radius: 50%;
+  background: var(--accent); border: 2px solid #101208; cursor: pointer;
+}
+.range::-webkit-slider-thumb:hover { background: var(--accent-bright); }
+.range-value { font-family: var(--font-mono); font-size: 11px; color: var(--accent-mid); min-width: 42px; text-align: right; }
+
+/* ---------- Клавиши (справочник) ---------- */
+
+.keys-list { display: flex; flex-direction: column; }
+.key-row {
+  display: flex; align-items: center; gap: 14px;
+  min-height: 44px; padding: 8px 2px;
+  border-bottom: 1px solid rgba(255, 255, 255, .045);
+}
+.key-row:last-child { border-bottom: none; }
+.key-row__label { flex: 1 1 auto; font-size: 12.5px; color: var(--text-muted); }
+.key-row--main .key-row__label { color: var(--text-primary); font-weight: 600; }
+
+/* ---------- Частые вопросы (аккордеон) ---------- */
+
+.faq-cat { font-size: 11px; color: var(--text-subtle); margin: 14px 2px 7px; }
+.faq-cat:first-child { margin-top: 0; }
+.faq-item {
+  background: var(--card-bg);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  margin-bottom: 7px;
+  overflow: hidden;
+}
+.faq-item__head {
+  width: 100%; display: flex; align-items: center; gap: 10px;
+  padding: 11px 13px;
+  text-align: left;
+  font-size: 12.5px; font-weight: 700; color: var(--text-primary);
+}
+.faq-item__head:hover { background: rgba(255, 255, 255, .04); }
+.faq-item__chev {
+  margin-left: auto; flex: none; width: 14px; height: 14px; color: var(--text-subtle);
+  transition: transform var(--t-base) var(--ease);
+}
+.faq-item.is-open .faq-item__chev { transform: rotate(180deg); color: var(--accent); }
+.faq-item__body { display: none; padding: 0 13px 13px; font-size: 12px; line-height: 1.7; color: var(--text-muted); }
+.faq-item.is-open .faq-item__body { display: block; animation: drop var(--t-base) var(--ease); }
+.crumbs { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
+.crumb {
+  padding: 4px 10px; border-radius: 8px;
+  background: #2c2c31; border: 1px solid #3b3b41;
+  font-size: 11px; font-weight: 600; color: var(--text-primary);
+}
+.crumb--muted { background: transparent; border-color: transparent; color: var(--text-subtle); font-weight: 500; padding: 4px 2px; }
+.crumb-sep { color: var(--text-subtle); font-size: 11px; }
+
+/* ---------- Ответы ИИ (история) ---------- */
+
+.hist-item {
+  width: 100%; text-align: left;
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px;
+  background: var(--card-bg);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  margin-bottom: 7px;
+  transition: border-color var(--t-fast) var(--ease);
+}
+.hist-item:hover { border-color: var(--line-strong); }
+.hist-item__q { flex: 1 1 auto; min-width: 0; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hist-item__meta { flex: none; display: flex; align-items: center; gap: 8px; font-size: 10px; color: var(--text-subtle); }
+.verdict-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+
+/* ---------- Правила (база знаний) ---------- */
+
+.kb-card {
+  background: var(--card-bg);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  padding: 14px 16px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.kb-state { display: flex; align-items: center; gap: 9px; font-size: 13px; font-weight: 800; }
+.kb-state .dot { width: 9px; height: 9px; border-radius: 50%; background: currentColor; box-shadow: 0 0 10px currentColor; }
+.kb-updated { font-size: 11.5px; color: var(--text-muted); }
+.kb-updated b { color: var(--text-primary); font-family: var(--font-mono); font-weight: 600; }
+.kb-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px 18px; }
+.kb-grid__row { display: flex; align-items: baseline; justify-content: space-between; font-size: 12px; }
+.kb-grid__row span { color: var(--text-muted); }
+.kb-grid__row b { font-family: var(--font-mono); font-weight: 700; }
+.kb-grid__row b.has { color: var(--accent); }
+.kb-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.kb-note { font-size: 10.5px; color: var(--text-subtle); line-height: 1.65; }
+
+.notice {
+  display: flex; gap: 9px; align-items: flex-start;
+  padding: 10px 12px; border-radius: 10px;
+  border: 1px solid var(--line);
+  background: rgba(248, 113, 113, .07);
+  color: var(--text-muted); font-size: 11.5px; line-height: 1.6;
+}
+.notice--info { background: rgba(172, 231, 46, .06); }
+.notice b { color: var(--text-primary); }
+
+/* ---------- Обновления за день (две колонки, ) ---------- */
+
+.upd-shell { display: flex; gap: 12px; min-height: 0; height: 100%; }
+.upd-list {
+  flex: none; width: 232px;
+  border: 1px solid var(--line); border-radius: 11px;
+  background: var(--card-bg);
+  overflow-y: auto; padding: 6px;
+}
+.upd-group { padding: 8px 8px 4px; font-size: 10px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--text-subtle); }
+.upd-item {
+  width: 100%; text-align: left;
+  padding: 7px 9px; border-radius: 8px;
+  border-left: 2px solid transparent;
+  color: var(--text-muted); font-size: 11.5px; line-height: 1.45;
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.upd-item:hover { background: rgba(255, 255, 255, .05); color: var(--text-primary); }
+.upd-item.is-active { background: rgba(172, 231, 46, .1); color: var(--accent); border-left-color: var(--accent); }
+.upd-item .meta { display: flex; gap: 6px; margin-top: 4px; }
+.upd-detail { flex: 1 1 auto; min-width: 0; overflow-y: auto; }
+
+/* ---------- Diff  ---------- */
+
+.diff-view {
+  white-space: pre-wrap; word-break: break-word;
+  font-size: 12.5px; line-height: 1.75;
+  background: rgba(16, 16, 19, .6);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.diff-legend { display: flex; gap: 16px; font-size: 10.5px; color: var(--text-subtle); margin-top: 9px; }
+.diff-legend i { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+.diff-del { color: #fff; background: rgba(231, 76, 60, .3); text-decoration: line-through; text-decoration-color: rgba(231, 76, 60, .85); border-radius: 3px; padding: 0 1px; }
+.diff-ins { color: #101208; background: var(--accent); border-radius: 3px; padding: 0 2px; font-weight: 700; }
+
+/* ---------- Профиль ---------- */
+
+.profile-head { display: flex; align-items: center; gap: 13px; margin-bottom: 14px; }
+.profile-head .avatar { width: 52px; height: 52px; border-radius: 50%; border: 1.5px solid var(--line-strong); background: var(--bg-muted); object-fit: cover; }
+.avatar--placeholder { display: inline-flex; align-items: center; justify-content: center; font-weight: 800; color: var(--accent-mid); font-size: 17px; }
+.profile-name { font-size: 15px; font-weight: 800; }
+.profile-meta { display: flex; align-items: center; gap: 7px; margin-top: 5px; flex-wrap: wrap; }
+/* П.3 раунда 27: обводка пилюли облегает текст, а не растягивается
+   на всю колонку (flex-column родители растягивали inline-flex). */
+.role-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  align-self: flex-start; width: fit-content; max-width: 100%;
+  height: 20px; padding: 0 9px; border-radius: 999px;
+  font-size: 10px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase;
+  border: 1px solid currentColor;
+}
+.role-pill .dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.kv { display: grid; grid-template-columns: 118px 1fr; gap: 7px 14px; font-size: 11.5px; }
+.kv dt { color: var(--text-subtle); }
+.kv dd { color: var(--text-primary); word-break: break-word; }
+
+/* ---------- Прочее ---------- */
+
+.empty {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+  padding: 34px 16px; text-align: center; color: var(--text-subtle); font-size: 11.5px;
+}
+.toast {
+  position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%) translateY(20px);
+  padding: 8px 15px; border-radius: 999px;
+  background: var(--drop-bg); border: 1px solid var(--stroke-accent);
+  color: var(--accent); font-size: 11.5px; font-weight: 700;
+  opacity: 0; pointer-events: none;
+  transition: opacity var(--t-base) var(--ease), transform var(--t-base) var(--ease);
+  z-index: 100;
+}
+.toast.is-visible { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+.section-title { font-size: 10px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; color: var(--text-subtle); }
+.badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  height: 20px; padding: 0 9px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--card-bg);
+  font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--text-muted);
+}
+.badge--accent { color: var(--accent); border-color: var(--stroke-accent); background: rgba(172, 231, 46, .08); }
+
+/* ------------------------------------------------------------------ */
+/*  База знаний ВНУТРИ панели (pane-kb): список слева, diff справа       */
+/* ------------------------------------------------------------------ */
+
+.kbpane__bar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(255, 255, 255, .02);
+}
+.kbpane__body {
+  flex: 1 1 auto; min-height: 0;
+  padding: 12px 16px 14px;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+.kbpane__body .upd-shell { flex: 1 1 auto; min-height: 0; height: auto; }
+.kbpane__body .kb-hist { overflow-y: auto; padding-right: 4px; }
+
+.upd-left {
+  width: 300px; flex: none; min-height: 0;
+  display: flex; flex-direction: column; gap: 9px;
+  border-right: 1px solid var(--line);
+  padding-right: 12px;
+}
+.upd-head { display: flex; align-items: baseline; gap: 8px; }
+.upd-head__date { font-size: 10.5px; color: var(--text-subtle); font-weight: 600; }
+.upd-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.upd-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 11px; border-radius: 999px;
+  border: 1px solid var(--line); background: rgba(255, 255, 255, .03);
+  color: var(--text-muted); font: inherit; font-size: 10.5px; font-weight: 700;
+  cursor: pointer;
+  transition: color .15s, background .15s, border-color .15s;
+}
+.upd-chip i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.upd-chip:hover { color: var(--text-primary); }
+.upd-chip.is-active { color: #0c0c0c; background: var(--accent); border-color: var(--accent); }
+.upd-group { display: flex; align-items: center; gap: 7px; }
+.upd-group__count {
+  font-size: 10px; font-weight: 800; color: var(--text-subtle);
+  background: rgba(255, 255, 255, .06); border-radius: 999px; padding: 1px 7px;
+}
+.upd-left .upd-list { flex: 1 1 auto; width: auto; min-height: 0; }
+
+/* ═══════════════════════ ОКНО «СПРОСИТЬ ИИ?» ═══════════════════════
+   Подтверждение отправки вопроса: остаток дневного лимита запросов,
+   прогресс-бар, кнопки «Отмена Esc» / «Спросить Enter».
+   Отключается настройкой «Подтверждать вопрос» (confirmAiAsk).
+   Рисуется В ОТДЕЛЬНОМ ОКНЕ (confirm.html) — из панели inline-модалка
+   убрана по требованию пользователя; стили те же, переопределяются ниже
+   для body.confirmwin (без тёмного фона и тени-ореола). */
+
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, .45);
+}
+.modal[hidden] { display: none; }
+.modal__box {
+  width: 340px;
+  padding: 18px 18px 16px;
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  background: #1b1b1f;
+  box-shadow: 0 22px 60px rgba(0, 0, 0, .6);
+}
+.modal__title {
+  font-size: 15px;
+  font-weight: 800;
+  text-align: center;
+  margin-bottom: 14px;
+}
+.modal__quota {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+  margin-bottom: 7px;
+}
+.modal__quota b { color: var(--text-primary); font-size: 12px; }
+.modal__bar {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .09);
+  overflow: hidden;
+  margin-bottom: 15px;
+}
+.modal__bar span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  transition: width .18s var(--ease);
+}
+.modal__actions {
+  display: flex;
+  gap: 9px;
+}
+.modal__actions .btn { flex: 1 1 0; justify-content: center; }
+.modal__key {
+  margin-left: 6px;
+  font-size: 9.5px;
+  font-weight: 600;
+  color: var(--text-subtle);
+  letter-spacing: .02em;
+}
+.btn--accent .modal__key { color: rgba(12, 12, 12, .62); }
+
+/* ---------- Отдельное окно подтверждения (confirm.html) ----------
+   Окно прозрачное и размером ровно с карточку: тёмная подложка и тень-ореол
+   убраны (требование пользователя — никакого «фона за приложением»),
+   карточка занимает всё окно, заголовок можно использовать для перетаскивания. */
+body.confirmwin { background: transparent; overflow: hidden; }
+body.confirmwin .modal { background: transparent; }
+body.confirmwin .modal__box {
+  width: 100%; height: 100%;
+  box-shadow: none;
+  border-radius: 14px;
+  display: flex; flex-direction: column; justify-content: center;
+}
+body.confirmwin .modal__title { -webkit-app-region: drag; cursor: move; }
+body.confirmwin .modal__actions { -webkit-app-region: no-drag; }
+
+/* ═══════════════════════ РЕЖИМ СТРИМЕРА ═══════════════════════
+   Ник заменяется случайным (settings.streamerNick), а настоящее фото
+   размывается фильтром .avatar--blurred (п.2): заглушка-силуэт убрана. */
+.userpill__ava-img,
+.side-user__ava-img {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 100%; height: 100%;
+  background: linear-gradient(160deg, #34343a, #232327);
+  color: var(--text-subtle);
+}
+
+/* ═══════════════════════ ВКЛАДКА «ПРАВИЛА» ═══════════════════════ */
+
+.rules-status {
+  padding: 14px 16px;
+}
+.rules-status__title { font-size: 13px; font-weight: 800; }
+.rules-status__meta { font-size: 10.5px; color: var(--text-subtle); margin-top: 3px; }
+.rules-caption {
+  font-size: 10.5px;
+  color: var(--text-subtle);
+  margin: 12px 2px 7px;
+}
+.rules-changes__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.rules-changes__title { font-size: 12.5px; font-weight: 800; flex: 1 1 auto; }
+.rules-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 9px;
+}
+
+</style>
+<style>
+
+/* Оформление самой демо-страницы — не часть продукта */
+body { background: #07080a !important; height: auto !important; min-height: 100vh; overflow: auto !important;
+       background-image: radial-gradient(circle at 18% 12%, rgba(172,231,46,.10), transparent 42%),
+                         radial-gradient(circle at 82% 78%, rgba(52,152,219,.10), transparent 45%),
+                         linear-gradient(#0b0d10, #07080a) !important; }
+.demo-note { max-width: 1240px; margin: 18px auto 14px; padding: 10px 14px; font-size: 11.5px; line-height: 1.65;
+             color: #888; border: 1px dashed rgba(238,249,244,.16); border-radius: 10px; background: rgba(18,20,22,.5); }
+.demo-note a { color: #ACE72E; }
+.demo-stage { display: flex; gap: 14px; align-items: flex-start; justify-content: center; flex-wrap: wrap; padding: 0 18px 44px; }
+.demo-window { flex: none; position: relative; }
+
+</style>
+</head>
+<body>
+<div class="demo-note">Демо Epic AI: внутри встроен mock-backend с <b>вымышленными учебными</b> документами — это не официальные правила EpicRP. В приложении это отдельный BrowserWindow (380×236) поверх панели: показывает остаток дневного лимита перед отправкой вопроса. Enter — спросить, Esc — отмена; результат возвращается панели через main process.</div>
+<div class="demo-stage"><div class="demo-window" style="width:380px;height:236px">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+    <div class="modal__box">
+      <div class="modal__title" id="confirm-title">Спросить ИИ?</div>
+      <div class="modal__quota">
+        <span>Осталось сегодня</span>
+        <b id="confirm-quota">…</b>
+      </div>
+      <div class="modal__bar"><span id="confirm-bar" style="width:100%"></span></div>
+      <div class="modal__actions">
+        <button class="btn btn--ghost" id="confirm-cancel" type="button">Отмена<span class="modal__key">Esc</span></button>
+        <button class="btn btn--accent" id="confirm-ok" type="button">Спросить<span class="modal__key">Enter</span></button>
+      </div>
+    </div>
+  </div>
+
+  
+</div></div>
+<script type="module">
+/**
+ * EPIC AI — mock-мост и mock-backend для демо-страниц.
+ *
+ * Подменяет window.epicAI (IPC к Electron) и window.fetch (HTTP к backend),
+ * чтобы реальный код renderer'а работал в браузере без Electron, без сервера
+ * и без обращения к форуму. Используется ТОЛЬКО в demo/ — в продукт не входит.
+ *
+ * ⚠️ Данные — вымышленные учебные документы, НЕ официальные правила EpicRP.
+ */
+(function () {
+  'use strict';
+
+  /* ============================== ДАННЫЕ ============================== */
+
+  const USER = {
+    id: 1,
+    username: 'Alexander',
+    displayName: 'Alexander',
+    avatarUrl: null,
+    status: 'active',
+    createdAt: '2026-03-14T18:22:00.000Z',
+    lastLoginAt: new Date().toISOString(),
+    roles: [{ id: 8, code: 'developer', name: 'Разработчик', color: '#E2FF3F', level: 8, isSystem: true }],
+    primaryRole: { code: 'developer', name: 'Разработчик', color: '#E2FF3F', level: 8 },
+    identities: [
+      { provider: 'discord', providerUserId: '482913745629184011', username: 'alexander', displayName: 'Alexander', avatarUrl: null, linkedAt: '2026-03-14T18:22:00.000Z' },
+      { provider: 'telegram', providerUserId: '991204477', username: 'alex_rp', displayName: 'Alexander', avatarUrl: null, linkedAt: '2026-05-02T09:11:00.000Z' },
+    ],
+  };
+
+  const ALL_PERMISSIONS = [
+    'ai.use', 'ai.rules', 'ai.laws', 'ai.sources', 'ai.history', 'ai.feedback', 'ai.reports.view', 'ai.reports.manage',
+    'knowledge.view', 'knowledge.history', 'knowledge.sync', 'knowledge.manage',
+    'users.view', 'users.edit', 'users.block', 'roles.view', 'roles.assign', 'roles.manage', 'telegram.manage',
+    'permissions.view', 'permissions.manage', 'settings.view', 'settings.edit',
+    'system.logs', 'system.settings', 'system.manage',
+  ];
+
+  const PERMISSION_SPECS = [
+    { code: 'ai.use', category: 'ai', description: 'Отправлять запросы к AI' },
+    { code: 'ai.rules', category: 'ai', description: 'Режим ПРАВИЛА' },
+    { code: 'ai.laws', category: 'ai', description: 'Режим ЗАКОНЫ' },
+    { code: 'ai.sources', category: 'ai', description: 'Просмотр окна источников' },
+    { code: 'ai.history', category: 'ai', description: 'История своих запросов' },
+    { code: 'ai.feedback', category: 'ai', description: 'Ставить 👍 / 👎' },
+    { code: 'ai.reports.view', category: 'ai', description: 'Просмотр AI Reports' },
+    { code: 'ai.reports.manage', category: 'ai', description: 'Обработка AI Reports' },
+    { code: 'knowledge.view', category: 'knowledge', description: 'Просмотр базы знаний' },
+    { code: 'knowledge.history', category: 'knowledge', description: 'История версий и diff' },
+    { code: 'knowledge.sync', category: 'knowledge', description: 'Запуск синхронизации форума' },
+    { code: 'knowledge.manage', category: 'knowledge', description: 'Управление документами' },
+    { code: 'users.view', category: 'users', description: 'Просмотр пользователей' },
+    { code: 'users.edit', category: 'users', description: 'Редактирование пользователей' },
+    { code: 'users.block', category: 'users', description: 'Блокировка / разблокировка' },
+    { code: 'roles.view', category: 'roles', description: 'Просмотр ролей' },
+    { code: 'roles.assign', category: 'roles', description: 'Назначение ролей' },
+    { code: 'roles.manage', category: 'roles', description: 'Создание и изменение ролей' },
+    { code: 'telegram.manage', category: 'telegram', description: 'Управление Telegram-ботом: рассылки и уведомления' },
+    { code: 'permissions.view', category: 'roles', description: 'Просмотр permissions' },
+    { code: 'permissions.manage', category: 'roles', description: 'Управление permissions' },
+    { code: 'settings.view', category: 'settings', description: 'Просмотр настроек' },
+    { code: 'settings.edit', category: 'settings', description: 'Изменение настроек' },
+    { code: 'system.logs', category: 'system', description: 'Просмотр Audit Log' },
+    { code: 'system.settings', category: 'system', description: 'Системные настройки' },
+    { code: 'system.manage', category: 'system', description: 'Полный технический доступ' },
+  ];
+
+  const ROLES = [
+    { code: 'player', name: 'Игрок', color: '#888888', level: 1, system: false, perms: ['ai.use', 'ai.rules', 'ai.laws', 'ai.sources', 'ai.history', 'ai.feedback', 'settings.view'], users: 1284 },
+    { code: 'helper', name: 'Хелпер', color: '#72CE1C', level: 2, system: false, perms: ['ai.use', 'ai.rules', 'ai.laws', 'ai.sources', 'ai.history', 'ai.feedback', 'ai.reports.view', 'knowledge.view', 'knowledge.history', 'settings.view'], users: 22 },
+    { code: 'admin', name: 'Администратор', color: '#3498DB', level: 3, system: false, perms: ['ai.use', 'ai.rules', 'ai.laws', 'ai.sources', 'ai.history', 'ai.feedback', 'ai.reports.view', 'ai.reports.manage', 'knowledge.view', 'knowledge.history', 'knowledge.sync', 'users.view', 'users.edit', 'roles.view', 'roles.assign', 'permissions.view', 'settings.view', 'settings.edit', 'system.logs'], users: 11 },
+    { code: 'senior_admin', name: 'Старший администратор', color: '#9B59B6', level: 4, system: false, perms: ['ai.use', 'ai.reports.view', 'ai.reports.manage', 'knowledge.view', 'knowledge.history', 'knowledge.sync', 'knowledge.manage', 'users.view', 'users.edit', 'users.block', 'roles.view', 'roles.assign', 'permissions.view', 'permissions.manage', 'settings.view', 'settings.edit', 'system.logs'], users: 5 },
+    { code: 'deputy_chief', name: 'Заместитель главного администратора', color: '#E67E22', level: 5, system: false, perms: ALL_PERMISSIONS.filter((p) => p !== 'system.manage'), users: 2 },
+    { code: 'chief_admin', name: 'Главный администратор', color: '#E74C3C', level: 6, system: false, perms: ALL_PERMISSIONS.filter((p) => p !== 'system.manage'), users: 1 },
+    { code: 'project_lead', name: 'Руководство проекта', color: '#F1C40F', level: 7, system: false, perms: ALL_PERMISSIONS.filter((p) => p !== 'system.manage'), users: 2 },
+    { code: 'developer', name: 'Разработчик', color: '#E2FF3F', level: 8, system: true, perms: ALL_PERMISSIONS.slice(), users: 1 },
+  ];
+
+  const USERS = [
+    { id: 1, username: 'Alexander', displayName: 'Alexander', avatarUrl: null, status: 'active', role: 'developer', lastLoginAt: new Date().toISOString(), createdAt: '2026-03-14T18:22:00.000Z', discord: { username: 'alexander', providerUserId: '482913745629184011', displayName: 'Alexander' }, telegram: { username: 'alex_rp', providerUserId: '991204477', displayName: 'Alexander' } },
+    { id: 2, username: 'Stefan_Blaide', displayName: 'Stefan Blaide', avatarUrl: null, status: 'active', role: 'chief_admin', lastLoginAt: '2026-10-05T20:14:00.000Z', createdAt: '2026-02-07T19:00:00.000Z', discord: { username: 'stefan', providerUserId: '193847562938475621', displayName: 'Stefan Blaide' }, telegram: null },
+    { id: 3, username: 'Kirill_Morozov', displayName: 'Kirill Morozov', avatarUrl: null, status: 'active', role: 'admin', lastLoginAt: '2026-10-06T01:42:00.000Z', createdAt: '2026-04-11T12:00:00.000Z', discord: { username: 'kirill', providerUserId: '847362519283746512', displayName: 'Kirill' }, telegram: { username: 'kmoroz', providerUserId: '112233445', displayName: 'Kirill' } },
+    { id: 4, username: 'Nikita_Volkov', displayName: 'Nikita Volkov', avatarUrl: null, status: 'active', role: 'helper', lastLoginAt: '2026-10-05T17:03:00.000Z', createdAt: '2026-06-20T10:15:00.000Z', discord: { username: 'nikita_v', providerUserId: '756483920174658392', displayName: 'Nikita' }, telegram: null },
+    { id: 5, username: 'Dmitry_Sokolov', displayName: 'Dmitry Sokolov', avatarUrl: null, status: 'blocked', role: 'player', lastLoginAt: '2026-09-28T22:11:00.000Z', createdAt: '2026-07-01T08:30:00.000Z', discord: { username: 'dima_s', providerUserId: '617283940561728394', displayName: 'Dmitry' }, telegram: null, blockedReason: 'Систематический MG и оскорбления в OOC-канале', blockedAt: '2026-09-29T09:00:00.000Z', blockedBy: { id: 3, username: 'Kirill_Morozov' } },
+    { id: 6, username: 'Anna_Lebedeva', displayName: 'Anna Lebedeva', avatarUrl: null, status: 'active', role: 'player', lastLoginAt: '2026-10-06T04:55:00.000Z', createdAt: '2026-08-15T14:20:00.000Z', discord: null, telegram: { username: 'anna_l', providerUserId: '556677889', displayName: 'Anna' } },
+    { id: 7, username: 'Roman_D', displayName: 'Roman D.', avatarUrl: null, status: 'active', role: 'player', lastLoginAt: '2026-10-04T19:30:00.000Z', createdAt: '2026-09-02T16:45:00.000Z', discord: { username: 'roman_d', providerUserId: '918273645519283746', displayName: 'Roman' }, telegram: null },
+  ];
+
+  const roleByCode = (code) => ROLES.find((r) => r.code === code) ?? ROLES[0];
+
+  /* --------------------- Knowledge Base (фикстуры) --------------------- */
+
+  const KB_DOCS = [
+    {
+      id: 1, threadId: 13, docType: 'RULE', title: 'Правила сервера', section: 'Сервер / Правила сервера / Общие правила',
+      category: 'Важно', url: 'https://forum.epic-gta.com/threads/pravila-servera.13/', postId: 13,
+      sourceCreatedAt: '2026-02-07T19:00:00.000Z', sourceModifiedAt: '2026-10-05T17:14:00.000Z', status: 'active', version: 3,
+      text: `1. Основные термины Roleplay
+RP - (RolePlay) - игра по ролям, где игроки должны придерживаться выбранной роли.
+DM - (DeathMatch) - убийство или нанесение урона игроку без весомой на то причины.
+DB - (Drive By) - убийство игрока с помощью средства передвижения.
+MG - (Meta Gaming) - смешивание или использование OOC информации в IC.
+PG - (Power Gaming) - преувеличение возможностей своего персонажа.
+NLR - (New Life Rule) - новый персонаж не может использовать знания предыдущих персонажей игрока.
+
+3. DeathMatch (DM)
+3.1. Запрещено убивать или наносить урон игрокам без весомой IC причины.
+3.2. Весомой причиной считается: правильно отыгранная RP ситуация с предупреждением, самооборона при нападении, исполнение служебных обязанностей сотрудником государственной организации.
+3.3. Наказание за нарушение пункта 3.1: блокировка аккаунта сроком до 7 суток с конфискацией имущества, использованного при нарушении.
+
+4. Поведение при проверке документов
+4.1. Игрок обязан предоставлять документы по первому требованию сотрудника правоохранительных органов.
+4.2. Сотрудник обязан предоставить удостоверение личности при проверке, если игрок об этом попросил.
+4.3. Запрещено скрываться от проверки документов, находясь в транспортном средстве.
+
+5. Правила зелёных зон
+5.1. В зелёных зонах запрещены любые противоправные действия: DM, DB, ограбления, похищения.
+5.2. К зелёным зонам относятся территории государственных организаций, больницы, места проведения массовых мероприятий.
+5.3. Запрещено находиться в зелёной зоне с расчехлённым оружием.`,
+    },
+    {
+      id: 2, threadId: 12, docType: 'RULE', title: 'Правила и обязанности лидера государственной фракции', section: 'Сервер / Правила сервера / Правила для государственных фракций',
+      category: 'Важно', url: 'https://forum.epic-gta.com/threads/pravila-i-obyazannosti-lidera.12/', postId: 12,
+      sourceCreatedAt: '2026-02-07T19:10:00.000Z', sourceModifiedAt: '2026-09-30T12:00:00.000Z', status: 'active', version: 2,
+      text: `2. Применение силы
+2.1. Применение оружия допустимо только при наличии прямой угрозы жизни сотрудника или гражданских лиц.
+2.2. Перед применением оружия сотрудник обязан произвести устное предупреждение и выстрел в воздух, если обстановка это позволяет.
+2.3. Запрещено применять оружие к лицу, которое не оказывает сопротивления и выполнило требования сотрудника.
+
+3. Задержание
+3.1. Задержание производится только при наличии оснований, предусмотренных Penal Code штата Сан-Андреас.
+3.2. Сотрудник обязан сообщить задержанному причину задержания и его права.
+3.3. Запрещено задерживать лицо без оформления процессуальных документов.`,
+    },
+    {
+      id: 3, threadId: 21, docType: 'RULE', title: 'Правила для криминальных фракций', section: 'Сервер / Правила сервера / Правила для криминальных фракций',
+      category: 'Важно', url: 'https://forum.epic-gta.com/threads/pravila-kriminal.21/', postId: 21,
+      sourceCreatedAt: '2026-03-01T10:00:00.000Z', sourceModifiedAt: '2026-09-18T10:00:00.000Z', status: 'active', version: 1,
+      text: `2. Ограбления
+2.1. Ограбление допускается только при наличии не менее двух участников организации.
+2.2. Запрещено проводить ограбление без предварительного RolePlay отыгрыша подготовки.
+2.3. Запрещено брать в заложники более двух человек одновременно.
+
+3. Захват заложников
+3.1. Захват заложника допускается только при наличии IC мотивации.
+3.2. Запрещено использовать заложника как «живой щит» без переговоров.`,
+    },
+    {
+      id: 4, threadId: 68, docType: 'LAW', title: 'Конституция штата Сан-Андреас', section: 'Правительство / Законодательная база',
+      category: 'Важно', url: 'https://forum.epic-gta.com/threads/konstitutsiya-shtata-san-andreas.68/', postId: 68,
+      sourceCreatedAt: '2026-04-09T11:32:25.000Z', sourceModifiedAt: '2026-04-09T11:32:25.000Z', status: 'active', version: 1,
+      text: `Статья 2. Права и свободы человека
+2.1. Каждый имеет право на жизнь, свободу и личную неприкосновенность.
+2.2. Никто не может быть подвергнут аресту иначе как на основании закона и в установленном законом порядке.
+2.3. Каждому гарантируется право на квалифицированную юридическую помощь.
+2.4. Каждый обвиняемый считается невиновным, пока его виновность не будет установлена вступившим в законную силу решением суда.
+
+Статья 4. Судебная власть
+4.1. Правосудие в штате Сан-Андреас осуществляется только судом.
+4.2. Судебная власть независима и подчиняется исключительно закону.`,
+    },
+    {
+      id: 5, threadId: 191, docType: 'LAW', title: 'The Penal Code штата Сан-Андреас', section: 'Правительство / Законодательная база',
+      category: 'Важно', url: 'https://forum.epic-gta.com/threads/the-penal-code-shtata-san-andreas.191/', postId: 191,
+      sourceCreatedAt: '2026-05-02T10:00:00.000Z', sourceModifiedAt: '2026-10-05T11:20:00.000Z', status: 'active', version: 4,
+      text: `Статья 12.1. Убийство первой степени
+Умышленное убийство при отягчающих обстоятельствах наказывается лишением свободы сроком на 150 месяцев и штрафом в размере 200000 виртуальной валюты.
+
+Статья 12.2. Убийство второй степени
+Умышленное убийство без отягчающих обстоятельств наказывается лишением свободы сроком на 80 месяцев и штрафом в размере 90000 виртуальной валюты.
+
+Статья 12.4. Похищение человека
+Похищение человека наказывается лишением свободы сроком на 100 месяцев и штрафом в размере 120000 виртуальной валюты.
+
+Статья 21.3. Разбой
+Нападение с целью хищения имущества с применением оружия наказывается лишением свободы сроком на 110 месяцев и штрафом в размере 140000 виртуальной валюты.
+
+Статья 31.1. Незаконный оборот оружия
+Хранение и перевозка оружия без соответствующего разрешения наказывается лишением свободы сроком на 45 месяцев и штрафом в размере 60000 виртуальной валюты.`,
+    },
+    {
+      id: 6, threadId: 189, docType: 'LAW', title: 'Судебный кодекс штата Сан-Андреас', section: 'Правительство / Законодательная база',
+      category: 'Важно', url: 'https://forum.epic-gta.com/threads/sudebnyi-kodeks-shtata-san-andreas.189/', postId: 189,
+      sourceCreatedAt: '2026-05-04T09:00:00.000Z', sourceModifiedAt: '2026-08-11T09:00:00.000Z', status: 'active', version: 2,
+      text: `Статья 3. Порядок судебного заседания
+3.1. Судебное заседание открывается оглашением состава суда и сути обвинения.
+3.2. Стороны представляют свои доводы и доказательства.
+3.3. Решение суда оглашается публично и вступает в силу с момента оглашения.
+
+Статья 4. Обжалование
+4.1. Решение суда первой инстанции может быть обжаловано в апелляционном суде.`,
+    },
+  ];
+
+  const KB_CHANGES = [
+    {
+      id: 12, day: today(), documentId: 5, versionId: 55, changeKind: 'UPDATED', title: 'The Penal Code штата Сан-Андреас',
+      docType: 'LAW', url: 'https://forum.epic-gta.com/threads/the-penal-code-shtata-san-andreas.191/',
+      changedWords: 18, totalWords: 240, createdAt: new Date().toISOString(),
+      beforeText: 'Статья 12.1. Убийство первой степени\nУмышленное убийство при отягчающих обстоятельствах наказывается лишением свободы сроком на 120 месяцев и штрафом в размере 150000 виртуальной валюты.',
+      afterText: 'Статья 12.1. Убийство первой степени\nУмышленное убийство при отягчающих обстоятельствах наказывается лишением свободы сроком на 150 месяцев и штрафом в размере 200000 виртуальной валюты.',
+      diff: {
+        ops: [
+          { kind: 'equal', text: 'Статья 12.1. Убийство первой степени\nУмышленное убийство при отягчающих обстоятельствах наказывается лишением свободы сроком на ' },
+          { kind: 'del', text: '120' }, { kind: 'ins', text: '150' },
+          { kind: 'equal', text: ' месяцев и штрафом в размере ' },
+          { kind: 'del', text: '150000' }, { kind: 'ins', text: '200000' },
+          { kind: 'equal', text: ' виртуальной валюты.' },
+        ],
+        removedText: '120 150000', addedText: '150 200000', changedWords: 4, totalWords: 26, changedRatio: 0.15,
+      },
+    },
+    {
+      id: 11, day: today(), documentId: 1, versionId: 54, changeKind: 'UPDATED', title: 'Правила сервера',
+      docType: 'RULE', url: 'https://forum.epic-gta.com/threads/pravila-servera.13/',
+      changedWords: 9, totalWords: 310, createdAt: new Date().toISOString(),
+      beforeText: '4.2. Сотрудник обязан предоставить служебное удостоверение при проверке, если игрок об этом попросил.',
+      afterText: '4.2. Сотрудник обязан предоставить удостоверение личности при проверке, если игрок об этом попросил.',
+      diff: {
+        ops: [
+          { kind: 'equal', text: '4.2. Сотрудник обязан предоставить ' },
+          { kind: 'del', text: 'служебное удостоверение' },
+          { kind: 'ins', text: 'удостоверение личности' },
+          { kind: 'equal', text: ' при проверке, если игрок об этом попросил.' },
+        ],
+        removedText: 'служебное удостоверение', addedText: 'удостоверение личности', changedWords: 3, totalWords: 14, changedRatio: 0.21,
+      },
+    },
+    {
+      id: 10, day: today(), documentId: 7, versionId: 53, changeKind: 'NEW', title: 'Правила проведения массовых мероприятий',
+      docType: 'RULE', url: 'https://forum.epic-gta.com/threads/meropriyatiya-rules.141/',
+      changedWords: 46, totalWords: 46, createdAt: new Date().toISOString(), isNew: true,
+      afterText: '1. Общие положения\n1.1. Массовым мероприятием признаётся событие с участием более десяти персонажей.\n1.2. Организатор обязан согласовать мероприятие с администрацией проекта не позднее чем за 24 часа.\n\n2. Безопасность\n2.1. На территории проведения мероприятия запрещены любые противоправные действия.\n2.2. Организатор несёт ответственность за соблюдение правил участниками мероприятия.',
+    },
+    {
+      id: 9, day: yesterday(1), documentId: 3, versionId: 52, changeKind: 'UPDATED', title: 'Правила для криминальных фракций',
+      docType: 'RULE', url: 'https://forum.epic-gta.com/threads/pravila-kriminal.21/', changedWords: 12, totalWords: 180,
+      beforeText: '2.3. Запрещено брать в заложники более трёх человек одновременно.',
+      afterText: '2.3. Запрещено брать в заложники более двух человек одновременно.',
+      diff: { ops: [{ kind: 'equal', text: '2.3. Запрещено брать в заложники более ' }, { kind: 'del', text: 'трёх' }, { kind: 'ins', text: 'двух' }, { kind: 'equal', text: ' человек одновременно.' }], removedText: 'трёх', addedText: 'двух', changedWords: 2, totalWords: 11, changedRatio: 0.18 },
+    },
+    {
+      id: 8, day: yesterday(2), documentId: 6, versionId: 51, changeKind: 'UPDATED', title: 'Судебный кодекс штата Сан-Андреас',
+      docType: 'LAW', url: 'https://forum.epic-gta.com/threads/sudebnyi-kodeks-shtata-san-andreas.189/', changedWords: 6, totalWords: 120,
+      beforeText: '4.1. Решение суда первой инстанции может быть обжаловано в верховном суде.',
+      afterText: '4.1. Решение суда первой инстанции может быть обжаловано в апелляционном суде.',
+      diff: { ops: [{ kind: 'equal', text: '4.1. Решение суда первой инстанции может быть обжаловано в ' }, { kind: 'del', text: 'верховном' }, { kind: 'ins', text: 'апелляционном' }, { kind: 'equal', text: ' суде.' }], removedText: 'верховном', addedText: 'апелляционном', changedWords: 2, totalWords: 13, changedRatio: 0.15 },
+    },
+    { id: 7, day: yesterday(4), documentId: 2, versionId: 50, changeKind: 'NEW', title: 'Регламент взаимодействия государственных организаций', docType: 'RULE', url: 'https://forum.epic-gta.com/threads/reglament.140/', changedWords: 88, totalWords: 88, isNew: true, afterText: '1. Регламент определяет порядок взаимодействия государственных организаций при проведении совместных операций.\n2. Совместная операция проводится по согласованию руководителей задействованных организаций.' },
+  ];
+
+  let REPORTS = [
+    {
+      id: 1842, requestId: 901, userId: 6, username: 'Anna_Lebedeva', avatarUrl: null, userRole: 'Игрок',
+      mode: 'rules', question: 'Обязан ли полицейский показывать удостоверение при проверке документов?',
+      verdict: 'allowed', explanation: 'Да, сотрудник обязан показать удостоверение по требованию игрока.',
+      basis: 'Правила сервера, пункт 4.2: «Сотрудник обязан предоставить служебное удостоверение при проверке».',
+      category: 'outdated', categoryLabel: 'Устаревшая информация',
+      comment: 'В редакции от 05.10.2026 формулировка изменена на «удостоверение личности», AI цитирует старую версию.',
+      status: 'new', analysis: 'kb_outdated', analysisLabel: 'Устарела база', resolution: null,
+      handledBy: null, handledAt: null, createdAt: new Date(Date.now() - 3600_000).toISOString(), kbVersion: '6-20261005',
+      sources: [
+        { index: 0, documentId: 1, version: 3, docType: 'RULE', title: 'Правила сервера', heading: '4. Поведение при проверке документов', category: 'Важно', section: 'Сервер / Правила сервера / Общие правила', content: '4.2. Сотрудник обязан предоставить служебное удостоверение при проверке, если игрок об этом попросил.', url: 'https://forum.epic-gta.com/threads/pravila-servera.13/', revisionLabel: '05.10.2026 20:14', threadId: 13, postId: 13, score: 12.4 },
+      ],
+    },
+    {
+      id: 1841, requestId: 898, userId: 7, username: 'Roman_D', avatarUrl: null, userRole: 'Игрок',
+      mode: 'laws', question: 'Какой срок дают за убийство первой степени?',
+      verdict: 'forbidden', explanation: 'Убийство первой степени наказывается лишением свободы.',
+      basis: 'Penal Code, статья 12.1 — 120 месяцев и штраф 150000.',
+      category: 'wrong_article', categoryLabel: 'Неправильная статья',
+      comment: 'Срок уже изменён на 150 месяцев.', status: 'in_progress', analysis: 'kb_outdated', analysisLabel: 'Устарела база',
+      resolution: 'Проверяю версию Penal Code после последней синхронизации.', handledBy: { id: 3, username: 'Kirill_Morozov' },
+      handledAt: new Date(Date.now() - 7200_000).toISOString(), createdAt: new Date(Date.now() - 9000_000).toISOString(), kbVersion: '6-20261005',
+      sources: [
+        { index: 0, documentId: 5, version: 4, docType: 'LAW', title: 'The Penal Code штата Сан-Андреас', heading: 'Статья 12.1. Убийство первой степени', category: 'Важно', section: 'Правительство / Законодательная база', content: 'Статья 12.1. Убийство первой степени\nУмышленное убийство при отягчающих обстоятельствах наказывается лишением свободы сроком на 150 месяцев и штрафом в размере 200000 виртуальной валюты.', url: 'https://forum.epic-gta.com/threads/the-penal-code-shtata-san-andreas.191/', revisionLabel: '05.10.2026 11:20', threadId: 191, postId: 191, score: 18.9 },
+      ],
+    },
+    {
+      id: 1839, requestId: 890, userId: 4, username: 'Nikita_Volkov', avatarUrl: null, userRole: 'Хелпер',
+      mode: 'rules', question: 'Можно ли грабить в зелёной зоне, если отыграл маску?',
+      verdict: 'unknown', explanation: 'В официальной базе EpicRP не найдено подтверждённой информации для однозначного ответа.',
+      basis: null, category: 'misinterpreted', categoryLabel: 'Неверно истолковано правило',
+      comment: null, status: 'resolved', analysis: 'search_miss', analysisLabel: 'Ошибка поиска',
+      resolution: 'Пункт 5.1 прямо запрещает ограбления в зелёных зонах. Улучшен поиск по заголовкам пунктов.',
+      handledBy: { id: 1, username: 'Alexander' }, handledAt: new Date(Date.now() - 86400_000).toISOString(),
+      createdAt: new Date(Date.now() - 96400_000).toISOString(), kbVersion: '6-20261004',
+      sources: [],
+    },
+  ];
+
+  const AUDIT = [
+    { id: 512, actorName: 'Alexander', action: 'ai.report.status', entityType: 'ai_report', entityId: '1839', meta: { from: 'in_progress', to: 'resolved' }, createdAt: new Date(Date.now() - 86400_000).toISOString() },
+    { id: 511, actorName: 'system', action: 'knowledge.sync.auto', entityType: 'sync_log', entityId: '88', meta: { new: 1, updated: 2, archived: 0, status: 'success' }, createdAt: new Date(Date.now() - 3600_000).toISOString() },
+    { id: 510, actorName: 'Kirill_Morozov', action: 'user.block', entityType: 'user', entityId: '5', meta: { reason: 'Систематический MG и оскорбления в OOC-канале' }, createdAt: new Date(Date.now() - 7 * 86400_000).toISOString() },
+    { id: 509, actorName: 'Stefan_Blaide', action: 'user.role.change', entityType: 'user', entityId: '4', meta: { from: 'player', to: 'helper' }, createdAt: new Date(Date.now() - 8 * 86400_000).toISOString() },
+    { id: 508, actorName: 'Alexander', action: 'user.permission.add', entityType: 'user', entityId: '4', meta: { permission: 'knowledge.sync', effect: 'allow' }, createdAt: new Date(Date.now() - 8 * 86400_000).toISOString() },
+    { id: 507, actorName: 'Alexander', action: 'login', entityType: 'user', entityId: '1', meta: { provider: 'discord' }, createdAt: new Date(Date.now() - 9 * 86400_000).toISOString() },
+    { id: 506, actorName: 'system', action: 'system.bootstrap.developer', entityType: 'user', entityId: '1', meta: { label: 'discord:4829…' }, createdAt: new Date(Date.now() - 30 * 86400_000).toISOString() },
+  ];
+
+  function today() { return new Date().toISOString().slice(0, 10); }
+  function yesterday(n) { return new Date(Date.now() - n * 86400_000).toISOString().slice(0, 10); }
+
+  /* ============================== СОСТОЯНИЕ ============================== */
+
+  const SETTINGS = {
+    language: 'ru', theme: 'dark', autostart: false,
+    opacity: 0.82, animations: true, animationSpeed: 1,
+    panelWidth: 900, panelHeight: 56, panelPosition: 'bottom-center', panelX: null, panelY: null,
+    sourcesWidth: 420, sourcesHeight: 560, sourcesGap: 12,
+    alwaysOnTop: true, hotkey: 'F10', comboHistory: 'Ctrl+H', comboSources: 'Ctrl+O', comboPin: 'Ctrl+P',
+    hideOnOutsideClick: true, clearPreviousAnswer: true,
+    rememberMode: true, defaultMode: 'rules', hardwareAcceleration: true, lowPerformanceMode: false,
+    confirmAiAsk: true, streamerMode: false, streamerNick: null, micDeviceId: null,
+  };
+
+  /* Дневной лимит запросов к ИИ: 50 по умолчанию, персональный выдаёт админ. */
+  let quotaUsed = 3;
+  let quotaPersonal = null;
+  function quotaInfo() {
+    const limit = quotaPersonal ?? 50;
+    return { used: quotaUsed, limit, left: Math.max(0, limit - quotaUsed), resetAt: new Date(Date.now() + 3600_000).toISOString(), personal: quotaPersonal != null };
+  }
+
+  const listeners = new Map();
+  let currentRole = 'developer';
+  let lastAnswer = null;
+  let nextRequestId = 950;
+  let nextReportId = 1850;
+  const votes = new Map();
+  const HISTORY = [
+    { requestId: 902, mode: 'rules', question: 'Что такое DM и можно ли убивать игрока без причины?', verdict: 'forbidden', createdAt: new Date(Date.now() - 53 * 60_000).toISOString() },
+    { requestId: 901, mode: 'laws', question: 'Penal Code: статья за нападение на государственного служащего', verdict: 'depends', createdAt: new Date(Date.now() - 3 * 3600_000).toISOString() },
+  ];
+
+  function permsFor(roleCode) { return roleByCode(roleCode).perms.slice(); }
+
+  /* ============================== МОСТ epicAI ============================== */
+
+  const bridge = {
+    invoke: async (channel, ...args) => {
+      switch (channel) {
+        case 'epic:session:token':
+          return 'demo-session-token';
+        case 'epic:runtime':
+          return { backendUrl: 'https://demo.epic-ai.local', version: '1.0.0', platform: 'demo', arch: 'x64', electron: '33.x', chrome: '130.x', node: '20.x', packaged: false, settings: { ...SETTINGS } };
+        case 'epic:app:info':
+          return { version: '1.0.0', electron: '33.4.0', chrome: '130.0.6723.191', node: '20.19.0', platform: 'win32', arch: 'x64', userData: 'C:\\Users\\Alexander\\AppData\\Roaming\\Epic AI', packaged: false, backendUrl: 'https://demo.epic-ai.local' };
+        case 'epic:settings:get': return { settings: { ...SETTINGS } };
+        case 'epic:settings:set': Object.assign(SETTINGS, args[0] ?? {}); emit('settings:changed', { ...SETTINGS }); return { settings: { ...SETTINGS } };
+        case 'epic:settings:reset': return { settings: { ...SETTINGS } };
+        case 'epic:panel:resize': resizeStage(args[0]); return { x: 0, y: 0, width: 900, height: args[0] };
+        case 'epic:panel:geometry': return { x: 0, y: 0, width: 900, height: 56 };
+        case 'epic:panel:move': window.__DEMO_PANEL_MOVE__ = { x: args[0], y: args[1] }; return { x: args[0], y: args[1], width: 900, height: 56 };
+        case 'epic:window:toggle': case 'epic:window:show': case 'epic:window:hide': return true;
+        case 'epic:sources:open': await renderInlineSources(args[0]); return true;
+        case 'epic:history:open': renderInlineHistory(); return true;
+        case 'epic:history:pick': emit('main:open-history-item', args[0]); return true;
+        case 'epic:sources:close': { const slot = document.getElementById('demo-sources-slot'); if (slot) slot.innerHTML = ''; return true; }
+        // Подтверждение вопроса — отдельное «окно» рядом с панелью (в приложении
+        // это BrowserWindow confirm.html); promise ждёт клика «Спросить»/«Отмена».
+        case 'epic:ask:confirm': return askConfirmDemo();
+        case 'epic:ask:confirm:result': resolveConfirmDemo(Boolean(args[0])); return true;
+        case 'epic:admin:open': window.open('admin.html', '_blank'); return true;
+        case 'epic:auth:open': return true;
+        case 'epic:account:logout': return true;
+        case 'epic:external': window.open(args[0], '_blank', 'noopener'); return true;
+        case 'epic:hotkey:set': return { requested: args[0], registered: args[0], ok: true };
+        case 'epic:always-on-top': return Boolean(args[0]);
+        case 'epic:app:relaunch': return true;
+        case 'epic:app:quit': return true;
+        case 'epic:backend:logs': return ['[demo] mock-backend: логи отсутствуют — демо работает без реального сервера.'];
+        case 'epic:devtools': return true;
+        default: console.warn('[demo] неизвестный IPC-канал:', channel); return null;
+      }
+    },
+    on: (channel, listener) => {
+      if (!listeners.has(channel)) listeners.set(channel, new Set());
+      listeners.get(channel).add(listener);
+      return () => listeners.get(channel)?.delete(listener);
+    },
+    once: (channel) => new Promise((resolve) => {
+      const off = bridge.on(channel, (p) => { off(); resolve(p); });
+    }),
+    /** демо-переключатель роли */
+    __setRole: (code) => { currentRole = code; },
+    __role: () => currentRole,
+  };
+  window.epicAI = bridge;
+
+  function emit(channel, payload) {
+    for (const fn of listeners.get(channel) ?? []) { try { fn(payload); } catch (e) { console.error(e); } }
+  }
+
+  /**
+   * В приложении main process меняет высоту BrowserWindow (панель растёт вниз).
+   * В демо мы меняем высоту body — визуальный эффект тот же.
+   */
+  function resizeStage(height) {
+    const h = Math.max(56, Number(height) || 56);
+    document.body.style.height = `${h}px`;
+    document.body.style.minHeight = `${h}px`;
+    document.body.style.overflow = 'hidden';
+    document.body.style.transition = 'height .2s cubic-bezier(.22,.61,.36,1)';
+    const win = document.querySelector('.demo-window');
+    if (win) win.style.height = 'auto';
+  }
+
+  /**
+   * «Отдельное окно источников справа» .
+   * В демо рядом с панелью рисуется живая копия окна источников;
+   * полноценная версия той же вёрстки — demo/sources.html.
+   */
+  async function renderInlineSources(payload) {
+    const slot = document.getElementById('demo-sources-slot');
+    if (!slot) return;
+    window.__DEMO_SOURCES_PAYLOAD__ = payload;
+    slot.innerHTML = '';
+
+    const holder = document.createElement('div');
+    holder.className = 'demo-window';
+    holder.style.cssText = 'width:430px;height:600px';
+    const style = document.createElement('style');
+    style.textContent = '/* ============================================================\n   EPIC AI — окно источников \n   Отдельное окно справа от основной панели.\n   ============================================================ */\n\nbody { height: 100vh; }\n\n.sources {\n  display: flex; flex-direction: column;\n  height: 100vh;\n  border-radius: var(--radius);\n  overflow: hidden;\n  /* Тень-ореол вокруг окна убрана (требование пользователя: за приложением\n     не должно быть «фона») — внутренний блик оставлен. */\n  box-shadow: inset 0 1px 0 rgba(255,255,255,.03);\n}\n\n.sources__head {\n  flex: none;\n  display: flex; align-items: center; gap: 8px;\n  height: 38px; padding: 0 8px 0 12px;\n  border-bottom: 1px solid var(--stroke);\n  background: rgba(18,20,22,calc(var(--panel-alpha, .82) - .20));\n  -webkit-app-region: drag;\n}\n.sources__head .icon-btn, .sources__head .badge { -webkit-app-region: no-drag; }\n\n.sources__question {\n  flex: none;\n  padding: 8px 12px;\n  border-bottom: 1px solid var(--stroke);\n  font-size: 11.5px; color: var(--text-muted); line-height: 1.5;\n  background: rgba(12,12,12,calc(var(--panel-alpha, .82) - .52));\n  max-height: 62px; overflow: hidden;\n}\n.sources__question b { color: var(--text-primary); font-weight: 600; }\n\n.sources__body { flex: 1 1 auto; min-height: 0; padding: 10px; display: flex; flex-direction: column; gap: 10px; }\n\n.sources__foot {\n  flex: none;\n  display: flex; align-items: center; gap: 8px;\n  height: 28px; padding: 0 12px;\n  border-top: 1px solid var(--stroke);\n  background: rgba(18,20,22,calc(var(--panel-alpha, .82) - 0.32));\n}\n\n/* ---------- Карточка источника  ---------- */\n\n.src-card {\n  flex: none;\n  border: 1px solid var(--stroke);\n  border-radius: var(--radius-sm);\n  background: var(--glass-surface);\n  overflow: hidden;\n  transition: border-color var(--t-fast) var(--ease);\n}\n.src-card:hover { border-color: var(--stroke-strong); }\n\n.src-card__head {\n  display: flex; align-items: flex-start; gap: 8px;\n  padding: 9px 11px 8px;\n  border-bottom: 1px solid rgba(238,249,244,.05);\n  background: rgba(12,12,12,calc(var(--panel-alpha, .82) - .54));\n}\n.src-card__num {\n  flex: none;\n  width: 19px; height: 19px; margin-top: 1px;\n  display: inline-flex; align-items: center; justify-content: center;\n  border-radius: 5px;\n  background: rgba(172,231,46,.15);\n  border: 1px solid rgba(172,231,46,.3);\n  color: var(--accent);\n  font-size: 10px; font-weight: 800; font-family: var(--font-mono);\n}\n.src-card__titles { min-width: 0; flex: 1 1 auto; }\n.src-card__doc {\n  font-size: 12px; font-weight: 700; color: var(--text-primary);\n  line-height: 1.35;\n}\n.src-card__item {\n  margin-top: 2px;\n  font-size: 11px; font-weight: 600; color: var(--accent-mid);\n  letter-spacing: .02em;\n}\n.src-card__kind {\n  flex: none; align-self: center;\n}\n\n.src-card__meta {\n  display: flex; flex-wrap: wrap; gap: 6px 12px;\n  padding: 7px 11px;\n  font-size: 10px; color: var(--text-subtle);\n  border-bottom: 1px solid rgba(238,249,244,.05);\n}\n.src-card__meta span b { color: var(--text-muted); font-weight: 600; }\n.src-card__meta .mono { font-family: var(--font-mono); }\n\n.src-card__text {\n  padding: 10px 11px;\n  font-size: 12px; line-height: 1.65; color: var(--text-primary);\n  white-space: pre-wrap; word-break: break-word;\n  max-height: 210px; overflow: hidden auto;\n}\n.src-card__text mark { background: rgba(172,231,46,.2); color: var(--accent-bright); border-radius: 3px; padding: 0 2px; }\n\n.src-card__foot {\n  display: flex; align-items: center; gap: 8px;\n  padding: 7px 11px;\n  border-top: 1px solid rgba(238,249,244,.05);\n  background: rgba(12,12,12,calc(var(--panel-alpha, .82) - .60));\n}\n.src-open {\n  display: inline-flex; align-items: center; gap: 5px;\n  font-size: 10.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;\n  color: var(--accent);\n  padding: 3px 8px; margin-left: -8px;\n  border-radius: var(--radius-xs);\n  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);\n}\n.src-open:hover { background: rgba(172,231,46,.12); color: var(--accent-bright); }\n.src-open svg { width: 11px; height: 11px; }\n\n.src-related {\n  padding: 8px 11px;\n  border: 1px dashed var(--stroke);\n  border-radius: var(--radius-sm);\n  background: rgba(12,12,12,calc(var(--panel-alpha, .82) - .57));\n}\n.src-related__title { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--text-subtle); margin-bottom: 6px; }\n.src-related__item { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--text-muted); padding: 2px 0; }\n\n.src-nodata {\n  border: 1px solid rgba(248,113,113,.28);\n  background: rgba(248,113,113,.07);\n  border-radius: var(--radius-sm);\n  padding: 12px;\n  font-size: 12px; line-height: 1.6; color: var(--text-muted);\n}\n.src-nodata b { color: var(--warning); }\n';
+    holder.appendChild(style);
+    slot.appendChild(holder);
+
+    const link = document.createElement('a');
+    link.href = 'sources.html';
+    link.target = '_blank';
+    link.textContent = 'Открыть окно источников в полном размере ↗';
+    link.style.cssText = 'display:block;margin:8px 2px 0;font-size:10.5px;color:#888;text-align:center;text-decoration:none';
+    slot.appendChild(link);
+
+    const root = document.createElement('div');
+    root.className = 'sources glass';
+    root.innerHTML =
+      '<header class="sources__head">' +
+        '<div class="row gap-8" style="min-width:0">' +
+          '<span class="section-title">Найденные источники</span>' +
+          '<span class="badge">' + escapeHtmlDemo(payload.modeLabel ?? 'ПРАВИЛА') + '</span>' +
+          '<span class="badge badge--accent">' + (payload.sources ?? []).length + '</span>' +
+        '</div>' +
+        '<span class="grow"></span>' +
+        '<button class="icon-btn" data-role="close" title="Закрыть">' +
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>' +
+        '</button>' +
+      '</header>' +
+      '<div class="sources__question"><b>Запрос:</b> ' + escapeHtmlDemo(payload.question ?? '') + '</div>' +
+      '<div class="sources__body scroll" data-role="list"></div>' +
+      '<footer class="sources__foot">' +
+        '<span class="subtle" style="font-size:10px">база v' + escapeHtmlDemo(payload.kbVersion ?? '—') + ' · ' + fmtDemo(payload.generatedAt) + '</span>' +
+        '<span class="grow"></span>' +
+        '<span class="subtle" style="font-size:10px">демо-окно</span>' +
+      '</footer>';
+    holder.appendChild(root);
+
+    root.querySelector('[data-role=close]').addEventListener('click', () => { slot.innerHTML = ''; });
+
+    const list = root.querySelector('[data-role=list]');
+    if (!payload.sources || !payload.sources.length) {
+      list.innerHTML = '<div class="src-nodata"><b>В официальной базе EpicRP не найдено подтверждённой информации для однозначного ответа.</b>' +
+        '<div style="margin-top:6px">Система не придумывает правила и статьи: если официального источника нет — ответа нет.</div></div>';
+      return;
+    }
+    const terms = [...new Set(String(payload.question ?? '').toLowerCase().match(/[a-zа-яё0-9]{3,}/gi) ?? [])];
+    for (const src of payload.sources) {
+      const card = document.createElement('article');
+      card.className = 'src-card';
+      card.innerHTML =
+        '<div class="src-card__head">' +
+          '<span class="src-card__num">' + (src.index + 1) + '</span>' +
+          '<div class="src-card__titles">' +
+            '<div class="src-card__doc">' + escapeHtmlDemo(src.title) + '</div>' +
+            (src.heading ? '<div class="src-card__item">' + escapeHtmlDemo(src.heading) + '</div>' : '') +
+          '</div>' +
+          '<span class="' + (src.docType === 'LAW' ? 'badge' : 'badge badge--mid') + ' src-card__kind">' + (src.docType === 'LAW' ? 'Закон' : 'Правило') + '</span>' +
+        '</div>' +
+        '<div class="src-card__meta">' +
+          '<span><b>Категория:</b> ' + escapeHtmlDemo(src.category ?? '—') + '</span>' +
+          '<span><b>Дата редакции:</b> <span class="mono">' + escapeHtmlDemo(src.revisionLabel ?? '—') + '</span></span>' +
+          '<span><b>Версия:</b> <span class="mono">v' + src.version + '</span></span>' +
+          '<span><b>Тема:</b> <span class="mono">#' + src.threadId + '</span></span>' +
+        '</div>' +
+        '<div class="src-card__text selectable">' + highlightDemo(src.content, terms) + '</div>' +
+        '<div class="src-card__foot">' +
+          '<a class="src-open" href="' + escapeHtmlDemo(src.url) + '" target="_blank" rel="noopener">Открыть источник ↗</a>' +
+          '<span class="grow"></span>' +
+          '<span class="subtle" style="font-size:9.5px">forum.epic-gta.com</span>' +
+        '</div>';
+      list.appendChild(card);
+    }
+  }
+
+  /**
+   * История ответов в демо: отдельный «экран» рядом с панелью — как окно
+   * истории в приложении (открывается в стиле окна источников).
+   */
+  function renderInlineHistory() {
+    const slot = document.getElementById('demo-history-slot');
+    if (!slot) return;
+    slot.innerHTML = '';
+    const holder = document.createElement('div');
+    holder.className = 'demo-window';
+    holder.style.cssText = 'width:460px;height:600px;display:flex;flex-direction:column;overflow:hidden';
+    slot.appendChild(holder);
+    const chrome = document.createElement('div');
+    chrome.className = 'histwin__chrome';
+    chrome.style.borderRadius = '0';
+    chrome.innerHTML = '<b class="histwin__title">История ответов</b>';
+    holder.appendChild(chrome);
+    const root = document.createElement('div');
+    root.className = 'histwin__body';
+    root.style.height = 'auto';
+    root.style.flex = '1 1 auto';
+    holder.appendChild(root);
+    root.innerHTML = '<div class="empty"><span class="spinner"></span></div>';
+    void (async () => {
+      let items = [];
+      try { items = (await (await fetch('http://127.0.0.1:8787/api/ai/history?limit=60')).json()).items ?? []; }
+      catch { root.innerHTML = '<div class="empty">История недоступна</div>'; return; }
+      root.innerHTML = '';
+      if (!items.length) { root.innerHTML = '<div class="empty">Истории пока нет</div>'; return; }
+      const colors = { allowed: '#ACE72E', forbidden: '#E74C3C', depends: '#F1C40F', unknown: '#666' };
+      for (const it of items) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'hist-item';
+        b.innerHTML = `<span class="verdict-dot" style="background:${colors[it.verdict] ?? colors.unknown}"></span><span class="hist-item__q"></span><span class="hist-item__meta"><span class="badge" style="text-transform:none">${it.mode === 'laws' ? 'законы' : 'правила'}</span></span>`;
+        b.querySelector('.hist-item__q').textContent = it.question;
+        b.onclick = () => { window.epicAI.invoke('epic:history:pick', it.requestId); };
+        root.appendChild(b);
+      }
+    })();
+  }
+
+  /**
+   * Окно подтверждения «Спросить ИИ?» в демо: отдельная мини-карточка рядом
+   * с панелью (в приложении — BrowserWindow confirm.html поверх панели).
+   * Возвращает promise: «Спросить»/Enter → true, «Отмена»/Esc → false.
+   */
+  let confirmResolveDemo = null;
+  function resolveConfirmDemo(ok) {
+    const r = confirmResolveDemo;
+    confirmResolveDemo = null;
+    if (r) r(ok);
+  }
+  function askConfirmDemo() {
+    return new Promise((resolve) => {
+      const slot = document.getElementById('demo-confirm-slot');
+      if (!slot) { resolve(true); return; }
+      if (confirmResolveDemo) { confirmResolveDemo(false); confirmResolveDemo = null; }
+      slot.innerHTML = '';
+      const holder = document.createElement('div');
+      holder.className = 'demo-window demo-confirm';
+      holder.innerHTML =
+        '<div class="modal" style="position:static;background:transparent">' +
+          '<div class="modal__box" style="box-shadow:none">' +
+            '<div class="modal__title">Спросить ИИ?</div>' +
+            '<div class="modal__quota"><span>Осталось сегодня</span><b data-role="quota">…</b></div>' +
+            '<div class="modal__bar"><span data-role="bar" style="width:100%"></span></div>' +
+            '<div class="modal__actions">' +
+              '<button class="btn btn--ghost" data-role="cancel" type="button">Отмена<span class="modal__key">Esc</span></button>' +
+              '<button class="btn btn--accent" data-role="ok" type="button">Спросить<span class="modal__key">Enter</span></button>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+      slot.appendChild(holder);
+      const q = quotaInfo();
+      holder.querySelector('[data-role=quota]').textContent = q.left + ' из ' + q.limit;
+      holder.querySelector('[data-role=bar]').style.width = (q.limit > 0 ? Math.round((q.left / q.limit) * 100) : 0) + '%';
+      const finish = (ok) => {
+        if (confirmResolveDemo !== resolve) return;
+        confirmResolveDemo = null;
+        document.removeEventListener('keydown', onKey, true);
+        slot.innerHTML = '';
+        resolve(ok);
+      };
+      const onKey = (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+        else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+      };
+      holder.querySelector('[data-role=ok]').onclick = () => finish(true);
+      holder.querySelector('[data-role=cancel]').onclick = () => finish(false);
+      document.addEventListener('keydown', onKey, true);
+      confirmResolveDemo = resolve;
+    });
+  }
+
+
+
+  function escapeHtmlDemo(s) {
+    return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  function highlightDemo(text, terms) {
+    let out = escapeHtmlDemo(text);
+    for (const t of terms) {
+      const safe = t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      out = out.replace(new RegExp('(' + safe + ')', 'gi'), '<mark>$1</mark>');
+    }
+    return out;
+  }
+
+  function fmtDemo(v) {
+    if (!v) return '—';
+    const d = new Date(v);
+    if (Number.isNaN(d.getTime())) return '—';
+    const p = (n) => String(n).padStart(2, '0');
+    return p(d.getDate()) + '.' + p(d.getMonth() + 1) + '.' + d.getFullYear() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+
+
+  /* ============================== FETCH-ШИМ ============================== */
+
+  /**
+   * В реальном Electron 33 fetch есть всегда. Шим нужен только окружениям без
+   * fetch (jsdom в тестах, старые WebView) — иначе mock-backend не поднимется.
+   */
+  if (typeof window.fetch !== 'function') {
+    window.fetch = function (input) {
+      var url = typeof input === 'string' ? input : (input && input.url);
+      return Promise.reject(new Error('fetch недоступен в этом окружении: ' + url));
+    };
+  }
+  if (typeof window.Response === 'undefined') {
+    window.Response = class Response {
+      constructor(body, opts) {
+        opts = opts || {};
+        this._body = body;
+        this.status = opts.status === undefined ? 200 : opts.status;
+        this.ok = this.status >= 200 && this.status < 300;
+        const h = opts.headers || {};
+        this.headers = { get: (k) => (h[k] === undefined ? null : h[k]) };
+      }
+      text() { return Promise.resolve(this._body); }
+      json() { return Promise.resolve(JSON.parse(this._body)); }
+    };
+  }
+
+/* ============================== MOCK BACKEND ============================== */
+
+  const realFetch = window.fetch.bind(window);
+  window.fetch = async (input, init = {}) => {
+    const url = typeof input === 'string' ? input : input.url;
+    // Демо-ассеты (css/html соседних страниц) грузим реально
+    if (!/\/api\//.test(url)) return realFetch(input, init);
+    await sleep(120 + Math.random() * 220);
+    const method = (init.method ?? 'GET').toUpperCase();
+    const body = init.body ? JSON.parse(init.body) : {};
+    const path = url.replace(/^https?:\/\/[^/]+/, '').split('?')[0];
+    const query = new URLSearchParams(url.split('?')[1] ?? '');
+
+    try {
+      const data = await route(method, path, body, query);
+      return json(200, data);
+    } catch (e) {
+      return json(e.status ?? 500, { error: e.code ?? 'error', message: e.message });
+    }
+  };
+
+  function json(status, data) {
+    return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
+  }
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const fail = (status, code, message) => { const e = new Error(message); e.status = status; e.code = code; throw e; };
+
+  async function route(method, path, body, query) {
+    const perms = permsFor(currentRole);
+    const need = (...p) => { if (!p.every((x) => perms.includes(x))) fail(403, 'forbidden', `Недостаточно прав: ${p.join(', ')}`); };
+
+    /* ---- auth ---- */
+    if (path === '/api/auth/me' && method === 'GET') {
+      const u = { ...USER, primaryRole: { code: currentRole, name: roleByCode(currentRole).name, color: roleByCode(currentRole).color, level: roleByCode(currentRole).level } };
+      return { authenticated: true, blocked: false, user: u, permissions: perms, maxRoleLevel: roleByCode(currentRole).level, isDeveloper: currentRole === 'developer' };
+    }
+    if (path === '/api/auth/logout') return { ok: true };
+    if (path === '/api/auth/providers') return { telegram: true, devLogin: false, botUsername: 'EpicAIHelper_bot' };
+
+    /* ---- AI ---- */
+    if (method === 'DELETE' && /^\/api\/users\/\d+$/.test(path)) {
+      const id = Number(path.split('/')[3]);
+      const i = USERS.findIndex((x) => x.id === id);
+      if (i >= 0) USERS.splice(i, 1);
+      return { ok: true };
+    }
+    if (path === '/api/telegram/status' && method === 'GET') {
+      return {
+        enabled: true, username: 'EpicAIHelper_bot', polling: true, subscribers: 3,
+        notifyKbUpdates: true,
+        recent: [{ at: new Date(Date.now() - 3600_000).toISOString(), author: 'developer', text: 'Обновление правил сервера, раздел 4.3', sent: 3, failed: 0 }],
+      };
+    }
+    if (path === '/api/telegram/settings' && method === 'PUT') return { ok: true, notifyKbUpdates: Boolean(body.notifyKbUpdates) };
+    if (path === '/api/telegram/broadcast' && method === 'POST') return { ok: true, sent: 3, failed: 0, subscribers: 3 };
+    if (path === '/api/ai/ask' && method === 'POST') {
+      need('ai.use');
+      const mode = body.mode === 'laws' ? 'laws' : 'rules';
+      const found = mockSearch(String(body.question ?? ''), mode);
+      const requestId = nextRequestId++;
+      quotaUsed += 1;
+      if (!found.length) {
+        lastAnswer = { requestId, mode, question: body.question, verdict: 'unknown', status: 'no_data', sources: [] };
+        HISTORY.unshift({ requestId, mode, question: String(body.question), verdict: 'unknown', createdAt: new Date().toISOString() });
+        return { ...lastAnswer, verdictLabel: 'Нет подтверждённых данных', explanation: 'В официальной базе EpicRP не найдено подтверждённой информации для однозначного ответа.', basis: null, noData: true, kbVersion: '6-20261005', latencyMs: 420, provider: 'groq', model: 'llama-3.3-70b-versatile', confidence: 0, feedback: { allowed: true, vote: null }, relatedDocuments: [], quota: quotaInfo() };
+      }
+      const answer = mockAnswer(body.question, mode, found);
+      lastAnswer = { requestId, ...answer };
+      HISTORY.unshift({ requestId, mode, question: String(body.question), verdict: answer.verdict, createdAt: new Date().toISOString() });
+      return { requestId, mode, question: body.question, status: 'ok', provider: 'groq', model: 'llama-3.3-70b-versatile', latencyMs: 1180, kbVersion: '6-20261005', noData: false, relatedDocuments: [], feedback: { allowed: true, vote: null }, quota: quotaInfo(), ...answer };
+    }
+    if (path === '/api/ai/quota' && method === 'GET') {
+      need('ai.use');
+      return quotaInfo();
+    }
+    if (path === '/api/ai/sources' && method === 'GET') {
+      return { requestId: Number(query.get('requestId')), mode: lastAnswer?.mode ?? 'rules', question: lastAnswer?.question ?? '', kbVersion: '6-20261005', createdAt: new Date().toISOString(), sources: lastAnswer?.sources ?? [] };
+    }
+    if (path === '/api/ai/transcribe' && method === 'POST') {
+      return { text: 'Можно ли красить транспорт в виниловый цвет?', provider: 'mock-whisper' };
+    }
+    if (path === '/api/ai/feedback/categories') {
+      return {
+        items: [
+          { id: 'misinterpreted', label: 'Неверно истолковано правило' }, { id: 'wrong_article', label: 'Неправильная статья' },
+          { id: 'outdated', label: 'Устаревшая информация' }, { id: 'wrong_source', label: 'Неверный источник' },
+          { id: 'technical', label: 'Техническая ошибка' }, { id: 'other', label: 'Другое' },
+        ],
+        analysis: [{ id: 'kb_outdated', label: 'Устарела база' }, { id: 'search_miss', label: 'Ошибка поиска' }, { id: 'ai_error', label: 'Ошибка AI' }, { id: 'technical', label: 'Техническая ошибка' }],
+      };
+    }
+    if (path === '/api/ai/feedback/like' && method === 'POST') { votes.set(body.requestId, 1); return { ok: true, requestId: body.requestId, vote: 1, reportCreated: false }; }
+    if (path === '/api/ai/reports' && method === 'POST') {
+      need('ai.feedback');
+      if (!body.category) fail(400, 'bad_request', 'Категория ошибки должна быть выбрана');
+      const id = nextReportId++;
+      REPORTS = [{
+        id, requestId: body.requestId, userId: USER.id, username: USER.username, avatarUrl: null, userRole: roleByCode(currentRole).name,
+        mode: lastAnswer?.mode ?? 'rules', question: lastAnswer?.question ?? '', verdict: lastAnswer?.verdict ?? 'unknown',
+        explanation: lastAnswer?.explanation ?? '', basis: lastAnswer?.basis ?? null,
+        category: body.category, categoryLabel: ({ misinterpreted: 'Неверно истолковано правило', wrong_article: 'Неправильная статья', outdated: 'Устаревшая информация', wrong_source: 'Неверный источник', technical: 'Техническая ошибка', other: 'Другое' })[body.category],
+        comment: body.comment ?? null, status: 'new', analysis: body.category === 'outdated' ? 'kb_outdated' : 'ai_error',
+        analysisLabel: body.category === 'outdated' ? 'Устарела база' : 'Ошибка AI', resolution: null, handledBy: null, handledAt: null,
+        createdAt: new Date().toISOString(), kbVersion: '6-20261005', sources: lastAnswer?.sources ?? [],
+      }, ...REPORTS];
+      votes.set(body.requestId, -1);
+      return { ok: true, reportId: id, requestId: body.requestId, status: 'new', suggestedAnalysis: body.category === 'outdated' ? 'kb_outdated' : 'ai_error' };
+    }
+    if (path === '/api/ai/reports' && method === 'GET') {
+      need('ai.reports.view');
+      const status = query.get('status');
+      const items = REPORTS.filter((r) => !status || r.status === status).map((r) => ({
+        id: r.id, requestId: r.requestId, user: { id: r.userId, username: r.username, avatarUrl: r.avatarUrl, role: r.userRole },
+        mode: r.mode, question: r.question, verdict: r.verdict, category: r.category, categoryLabel: r.categoryLabel,
+        comment: r.comment, status: r.status, analysis: r.analysis, analysisLabel: r.analysisLabel, resolution: r.resolution,
+        handledBy: r.handledBy, handledAt: r.handledAt, createdAt: r.createdAt, createdAtLabel: fmt(r.createdAt),
+      }));
+      return {
+        total: items.length, limit: 50, offset: 0,
+        counts: { new: REPORTS.filter((r) => r.status === 'new').length, inProgress: REPORTS.filter((r) => r.status === 'in_progress').length, resolved: REPORTS.filter((r) => r.status === 'resolved').length, all: REPORTS.length },
+        items,
+      };
+    }
+    if (/^\/api\/ai\/reports\/\d+$/.test(path)) {
+      const id = Number(path.split('/').pop());
+      const r = REPORTS.find((x) => x.id === id);
+      if (!r) fail(404, 'not_found', 'Отчёт не найден');
+      if (method === 'GET') {
+        need('ai.reports.view');
+        return {
+          id: r.id, user: { id: r.userId, username: r.username, avatarUrl: r.avatarUrl, role: r.userRole, status: 'active' },
+          question: r.question, mode: r.mode, modeLabel: r.mode === 'laws' ? 'Законы' : 'Правила',
+          aiAnswer: { verdict: r.verdict, explanation: r.explanation, basis: r.basis, model: 'llama-3.3-70b-versatile', provider: 'groq', createdAt: r.createdAt },
+          sources: r.sources, category: r.category, categoryLabel: r.categoryLabel, comment: r.comment,
+          status: r.status, statusLabel: { new: 'Новая', in_progress: 'На проверке', resolved: 'Решена' }[r.status],
+          analysis: r.analysis, analysisLabel: r.analysisLabel, resolution: r.resolution, handledBy: r.handledBy, handledAt: r.handledAt,
+          kbVersion: r.kbVersion, createdAt: r.createdAt, createdAtLabel: fmt(r.createdAt),
+        };
+      }
+      if (method === 'PATCH') {
+        need('ai.reports.manage');
+        if (body.status) { r.status = body.status; r.handledBy = { id: USER.id, username: USER.username }; r.handledAt = new Date().toISOString(); }
+        if (body.analysis !== undefined) { r.analysis = body.analysis; r.analysisLabel = ({ kb_outdated: 'Устарела база', search_miss: 'Ошибка поиска', ai_error: 'Ошибка AI', technical: 'Техническая ошибка' })[body.analysis] ?? null; }
+        if (body.resolution !== undefined) r.resolution = body.resolution;
+        return { ok: true, id: r.id, status: r.status, analysis: r.analysis, resolution: r.resolution };
+      }
+    }
+    if (path === '/api/ai/history') return { items: HISTORY.slice(0, Number(query.get('limit') ?? 40)) };
+    if (/^\/api\/ai\/request\/\d+$/.test(path)) {
+      const id = Number(path.split('/').pop());
+      const item = HISTORY.find((x) => x.requestId === id);
+      if (!item) fail(404, 'not_found', 'Запрос не найден');
+      const found = mockSearch(item.question, item.mode);
+      const answer = found.length
+        ? mockAnswer(item.question, item.mode, found)
+        : { verdict: 'unknown', explanation: 'В официальной базе EpicRP не найдено подтверждённой информации для однозначного ответа.', basis: null, sources: [], confidence: 0 };
+      return { requestId: id, mode: item.mode, question: item.question, status: 'ok', provider: 'groq', model: 'llama-3.3-70b-versatile', latencyMs: 1180, kbVersion: '6-20261005', noData: !found.length, relatedDocuments: [], feedback: { allowed: true, vote: null }, ...answer };
+    }
+    if (path === '/api/ai/meta') return { kbVersion: '6-20261005', provider: 'groq', model: 'llama-3.3-70b-versatile', configured: true, configReason: null };
+
+    /* ---- Knowledge Base ---- */
+    if (path === '/api/kb/status') {
+      return {
+        state: 'updates', stateLabel: 'Есть обновления', stateColor: '#F87171',
+        lastSyncAt: new Date(Date.now() - 42 * 60_000).toISOString(), lastSyncLabel: fmt(Date.now() - 42 * 60_000),
+        lastSyncStatus: 'success', lastError: null, nextSyncAt: new Date(Date.now() + 18 * 60_000).toISOString(),
+        intervalMinutes: 30, documents: { total: 64, active: 58, archive: 6, rules: 27, laws: 31 },
+        versions: 143, chunks: 812, today: { newCount: 1, updatedCount: 2, archivedCount: 0 },
+        kbVersion: '6-20261005', crawlerEnabled: false,
+      };
+    }
+    if (path === '/api/kb/sync' && method === 'POST') return { ok: true, message: 'Синхронизация запущена (демо)' };
+    if (path === '/api/kb/sync/logs') {
+      return {
+        running: false,
+        items: [
+          { id: 88, startedAt: new Date(Date.now() - 42 * 60_000).toISOString(), finishedAt: new Date(Date.now() - 40 * 60_000).toISOString(), triggerType: 'auto', status: 'success', docsNew: 1, docsUpdated: 2, docsArchived: 0, docsUnchanged: 55, pagesFetched: 63, error: null },
+          { id: 87, startedAt: new Date(Date.now() - 72 * 60_000).toISOString(), finishedAt: new Date(Date.now() - 70 * 60_000).toISOString(), triggerType: 'auto', status: 'success', docsNew: 0, docsUpdated: 1, docsArchived: 0, docsUnchanged: 57, pagesFetched: 61, error: null },
+          { id: 86, startedAt: new Date(Date.now() - 102 * 60_000).toISOString(), finishedAt: new Date(Date.now() - 101 * 60_000).toISOString(), triggerType: 'manual', status: 'error', docsNew: 0, docsUpdated: 0, docsArchived: 0, docsUnchanged: 0, pagesFetched: 4, error: 'forum.epic-gta.com: timeout after 20000 ms' },
+        ],
+      };
+    }
+    if (path === '/api/kb/changes/today') return changesFor(today());
+    if (path === '/api/kb/changes/history') {
+      const byDay = {};
+      for (const c of KB_CHANGES) { byDay[c.day] = byDay[c.day] ?? { day: c.day, newCount: 0, updatedCount: 0, archivedCount: 0, total: 0 }; byDay[c.day].total++; if (c.changeKind === 'NEW') byDay[c.day].newCount++; if (c.changeKind === 'UPDATED') byDay[c.day].updatedCount++; }
+      return { items: Object.values(byDay).sort((a, b) => (a.day < b.day ? 1 : -1)).map((d) => ({ ...d, summary: `${d.newCount} новых · ${d.updatedCount} изменений` })) };
+    }
+    if (path === '/api/kb/changes') return changesFor(query.get('day') ?? today());
+    if (/^\/api\/kb\/changes\/\d+$/.test(path)) {
+      const id = Number(path.split('/').pop());
+      const c = KB_CHANGES.find((x) => x.id === id);
+      if (!c) fail(404, 'not_found', 'Изменение не найдено');
+      const doc = KB_DOCS.find((d) => d.id === c.documentId) ?? KB_DOCS[0];
+      return {
+        change: c,
+        document: { id: doc.id, title: c.title, docType: c.docType, section: doc.section, category: doc.category, url: c.url, threadId: doc.threadId, postId: doc.postId, status: doc.status, sourceCreatedAt: doc.sourceCreatedAt, sourceModifiedAt: doc.sourceModifiedAt },
+        before: c.beforeText ? { versionId: c.versionId - 1, version: doc.version - 1, text: c.beforeText, createdAt: doc.sourceCreatedAt } : null,
+        after: { versionId: c.versionId, version: doc.version, text: c.afterText, createdAt: new Date().toISOString() },
+        diff: c.diff ?? null,
+        isNew: Boolean(c.isNew),
+      };
+    }
+    if (path === '/api/kb/documents') {
+      const items = KB_DOCS.filter((d) => !query.get('type') || d.docType === query.get('type')).map((d) => ({
+        id: d.id, docType: d.docType, title: d.title, section: d.section, category: d.category, url: d.url, threadId: d.threadId,
+        status: d.status, sourceModifiedAt: d.sourceModifiedAt, updatedAt: d.sourceModifiedAt, contentHash: 'a1b2c3', versions: d.version, currentVersion: d.version,
+      }));
+      return { total: items.length, items };
+    }
+    if (/^\/api\/kb\/documents\/\d+$/.test(path)) {
+      const id = Number(path.split('/').pop());
+      const d = KB_DOCS.find((x) => x.id === id) ?? KB_DOCS[0];
+      return { ...d, content: d.text, wordCount: d.text.split(/\s+/).length, versions: Array.from({ length: d.version }, (_, i) => ({ versionId: id * 100 + i + 1, version: i + 1, title: d.title, wordCount: d.text.split(/\s+/).length, contentHash: 'h' + i, changeKind: i === 0 ? 'NEW' : 'UPDATED', sourceModifiedAt: d.sourceModifiedAt, fetchedAt: d.sourceModifiedAt, createdAt: d.sourceCreatedAt })) };
+    }
+    if (/^\/api\/kb\/documents\/\d+\/versions$/.test(path)) {
+      const d = await route('GET', path.replace(/\/versions$/, ''), {}, new URLSearchParams());
+      return { items: d.versions };
+    }
+    if (/^\/api\/kb\/documents\/\d+\/diff$/.test(path)) {
+      const c = KB_CHANGES.find((x) => x.documentId === Number(path.split('/')[4])) ?? KB_CHANGES[0];
+      return { documentId: Number(path.split('/')[4]), from: Number(query.get('from')), to: Number(query.get('to')), diff: c.diff ?? { ops: [{ kind: 'equal', text: 'Изменений нет' }], removedText: '', addedText: '', changedWords: 0, totalWords: 10, changedRatio: 0 } };
+    }
+    if (path === '/api/kb/nodes') {
+      return { items: [{ nodeId: 38, parentNodeId: 30, title: 'Общие правила', url: 'https://forum.epic-gta.com/forums/obshchiye-pravila.38/', depth: 3, docType: 'RULE', isArchive: false, crawlEnabled: true, syncedAt: new Date().toISOString() }, { nodeId: 66, parentNodeId: 62, title: 'Законодательная база', url: 'https://forum.epic-gta.com/forums/zakonodatel-naya-baza.66/', depth: 2, docType: 'LAW', isArchive: false, crawlEnabled: true, syncedAt: new Date().toISOString() }, { nodeId: 121, parentNodeId: 120, title: 'Архив', url: 'https://forum.epic-gta.com/forums/arkhiv.121/', depth: 3, docType: null, isArchive: true, crawlEnabled: false, syncedAt: null }] };
+    }
+
+    /* ---- users / roles / permissions ---- */
+    if (path === '/api/users/me') {
+      return { ...USER, primaryRole: { code: currentRole, name: roleByCode(currentRole).name, color: roleByCode(currentRole).color, level: roleByCode(currentRole).level }, permissions: perms, extraPermissions: currentRole === 'helper' ? ['knowledge.sync'] : [], deniedPermissions: [], maxRoleLevel: roleByCode(currentRole).level, isDeveloper: currentRole === 'developer', createdAtLabel: fmt(USER.createdAt), lastLoginLabel: fmt(USER.lastLoginAt) };
+    }
+    if (path === '/api/users') {
+      need('users.view');
+      const q = (query.get('search') ?? '').toLowerCase();
+      const items = USERS
+        .filter((u) => !q || u.username.toLowerCase().includes(q) || String(u.id) === q || (u.discord?.username ?? '').toLowerCase().includes(q) || (u.telegram?.username ?? '').toLowerCase().includes(q))
+        .filter((u) => !query.get('role') || u.role === query.get('role'))
+        .filter((u) => !query.get('status') || u.status === query.get('status'))
+        .map(mapUser);
+      return { total: items.length, items };
+    }
+    if (path === '/api/users/blocked') {
+      need('users.view');
+      return { items: USERS.filter((u) => u.status === 'blocked').map((u) => ({ id: u.id, username: u.username, avatarUrl: u.avatarUrl, reason: u.blockedReason, blockedAt: u.blockedAt, blockedAtLabel: fmt(u.blockedAt), blockedBy: u.blockedBy })) };
+    }
+    if (/^\/api\/users\/\d+\/quota$/.test(path) && method === 'PUT') {
+      need('users.edit');
+      const v = body.dailyLimit;
+      if (v != null && (!Number.isFinite(Number(v)) || Number(v) < 0)) fail(400, 'bad_request', 'Лимит должен быть неотрицательным числом (или null для общего лимита)');
+      quotaPersonal = v == null ? null : Number(v);
+      return { ok: true, userId: Number(path.split('/')[3]), quota: quotaInfo() };
+    }
+    if (/^\/api\/users\/\d+$/.test(path) && method === 'GET') {
+      need('users.view');
+      const u = USERS.find((x) => x.id === Number(path.split('/').pop()));
+      if (!u) fail(404, 'not_found', 'Пользователь не найден');
+      const m = mapUser(u);
+      return { ...m, permissions: roleByCode(u.role).perms, permissionsDetail: { fromRoles: roleByCode(u.role).perms, extra: u.role === 'helper' ? ['knowledge.sync'] : [], denied: u.role === 'player' ? ['ai.laws'] : [] }, maxRoleLevel: roleByCode(u.role).level, isDeveloper: u.role === 'developer', history: AUDIT.filter((a) => String(a.entityId) === String(u.id)).map((a) => ({ ...a, createdAtLabel: fmt(a.createdAt) })), sessions: [{ id: 11, createdAt: u.lastLoginAt, lastSeenAt: u.lastLoginAt, expiresAt: new Date(Date.now() + 30 * 86400_000).toISOString(), revokedAt: u.status === 'blocked' ? new Date().toISOString() : null, ip: '10.0.0.14', userAgent: 'EpicAI/1.0.0 (Windows)' }], availableActions: { canEdit: true, canBlock: true, canAssignRole: true, canManagePermissions: true, assignableRoles: [] }, quota: quotaInfo() };
+    }
+    if (/^\/api\/users\/\d+\/role$/.test(path) && method === 'PATCH') { need('roles.assign'); const u = USERS.find((x) => x.id === Number(path.split('/')[3])); if (u) u.role = body.role; return { ok: true, userId: u?.id, role: { code: body.role, name: roleByCode(body.role).name, color: roleByCode(body.role).color, level: roleByCode(body.role).level } }; }
+    if (/^\/api\/users\/\d+\/status$/.test(path) && method === 'PATCH') { need('users.block'); const u = USERS.find((x) => x.id === Number(path.split('/')[3])); if (u) { u.status = body.blocked ? 'blocked' : 'active'; u.blockedReason = body.reason ?? null; u.blockedAt = body.blocked ? new Date().toISOString() : null; } return { ok: true, userId: u?.id, status: u?.status }; }
+    if (/^\/api\/users\/\d+\/permissions$/.test(path)) {
+      if (method === 'GET') { need('permissions.view'); const u = USERS.find((x) => x.id === Number(path.split('/')[3])); return { userId: u?.id, effective: roleByCode(u?.role ?? 'player').perms, fromRoles: roleByCode(u?.role ?? 'player').perms, extra: [], denied: [], roles: [], maxLevel: roleByCode(u?.role ?? 'player').level, isDeveloper: u?.role === 'developer' }; }
+      if (method === 'PUT') { need('permissions.manage'); return { ok: true, userId: Number(path.split('/')[3]), allow: body.effect === 'allow' ? [body.permission] : [], deny: body.effect === 'deny' ? [body.permission] : [] }; }
+    }
+    if (/^\/api\/users\/\d+\/sessions\/revoke$/.test(path)) { need('users.edit'); return { ok: true, revoked: 1 }; }
+    if (path === '/api/roles') {
+      need('roles.view');
+      const myLevel = roleByCode(currentRole).level;
+      return { items: ROLES.map((r) => ({ id: r.level, code: r.code, name: r.name, color: r.color, level: r.level, isSystem: r.system, permissions: r.perms, userCount: r.users, assignable: !r.system && r.level < myLevel, visible: r.level <= myLevel || currentRole === 'developer' })), spec: ROLES, actor: { maxLevel: myLevel, isDeveloper: currentRole === 'developer' } };
+    }
+    if (path === '/api/roles/assignable') { need('roles.assign'); const myLevel = roleByCode(currentRole).level; return { items: ROLES.filter((r) => !r.system && r.level < myLevel).map((r) => ({ code: r.code, name: r.name, color: r.color, level: r.level })) }; }
+    if (path === '/api/permissions') { need('permissions.view'); const groups = {}; for (const p of PERMISSION_SPECS) { groups[p.category] = groups[p.category] ?? []; groups[p.category].push(p); } return { items: PERMISSION_SPECS, groups: Object.entries(groups).map(([category, items]) => ({ category, items })), spec: PERMISSION_SPECS }; }
+    if (path === '/api/permissions/matrix') {
+      need('permissions.view');
+      const matrix = [];
+      ROLES.forEach((r, ri) => r.perms.forEach((code) => { const p = PERMISSION_SPECS.find((x) => x.code === code); if (p) matrix.push(`${ri + 1}:${PERMISSION_SPECS.indexOf(p) + 1}`); }));
+      return { roles: ROLES.map((r, i) => ({ id: i + 1, code: r.code, name: r.name, color: r.color, level: r.level, isSystem: r.system })), permissions: PERMISSION_SPECS.map((p, i) => ({ id: i + 1, code: p.code, category: p.category })), matrix: matrix.map((s) => s.split(':').map(Number)) };
+    }
+    if (path === '/api/permissions/sync' && method === 'POST') { need('permissions.manage'); return { ok: true, total: PERMISSION_SPECS.length }; }
+
+    /* ---- audit ---- */
+    if (path === '/api/audit-logs') {
+      need('system.logs');
+      const q = (query.get('search') ?? '').toLowerCase();
+      const items = AUDIT.filter((a) => !query.get('action') || a.action === query.get('action'))
+        .filter((a) => !q || a.action.includes(q) || (a.actorName ?? '').toLowerCase().includes(q))
+        .map((a) => ({ ...a, createdAtLabel: fmt(a.createdAt) }));
+      return { total: items.length, limit: 100, offset: 0, items };
+    }
+    if (path === '/api/audit-logs/actions') { need('system.logs'); const c = {}; for (const a of AUDIT) c[a.action] = (c[a.action] ?? 0) + 1; return { items: Object.entries(c).map(([action, count]) => ({ action, count })) }; }
+
+    /* ---- settings ---- */
+    if (path === '/api/settings/me' && method === 'GET') return { settings: { ...SETTINGS }, defaults: { ...SETTINGS }, schema: Object.keys(SETTINGS) };
+    if (path === '/api/settings/me' && method === 'PUT') { Object.assign(SETTINGS, body); return { ok: true, applied: body, settings: { ...SETTINGS } }; }
+    if (path === '/api/settings/me/reset' && method === 'POST') return { ok: true, settings: { ...SETTINGS } };
+    if (path === '/api/settings/system' && method === 'GET') { need('system.settings'); return { items: [{ key: 'sync.interval_minutes', value: 30, updatedAt: new Date().toISOString(), updatedBy: 1 }, { key: 'sync.automatic', value: true, updatedAt: new Date().toISOString(), updatedBy: 1 }, { key: 'crawler.enabled', value: false, updatedAt: new Date().toISOString(), updatedBy: 1 }, { key: 'kb.version', value: '6-20261005', updatedAt: new Date().toISOString(), updatedBy: null }] }; }
+    if (path === '/api/settings/system' && method === 'PUT') { need('system.settings'); return { ok: true, key: body.key, value: body.value }; }
+
+    /* ---- admin ---- */
+    if (path === '/api/admin/nav') {
+      const nav = [
+        { id: 'overview', label: 'Обзор', permission: 'users.view' },
+        { id: 'users', label: 'Пользователи', permission: 'users.view' },
+        { id: 'roles', label: 'Роли', permission: 'roles.view' },
+        { id: 'permissions', label: 'Permissions', permission: 'permissions.view' },
+        { id: 'blocks', label: 'Блокировки', permission: 'users.view' },
+        { id: 'ai', label: 'AI', permission: 'ai.reports.view', children: [{ id: 'ai-reports', label: 'Ошибки AI', permission: 'ai.reports.view' }] },
+        { id: 'kb', label: 'Knowledge Base', permission: 'knowledge.view', children: [{ id: 'kb-documents', label: 'Документы', permission: 'knowledge.view' }, { id: 'kb-versions', label: 'Версии', permission: 'knowledge.history' }, { id: 'kb-changes', label: 'Изменения', permission: 'knowledge.view' }, { id: 'kb-sync', label: 'Синхронизация', permission: 'knowledge.sync' }] },
+        { id: 'telegram', label: 'Telegram bot', permission: 'telegram.manage' },
+        { id: 'audit', label: 'Audit Log', permission: 'system.logs' },
+        { id: 'system', label: 'System', permission: 'system.settings' },
+      ];
+      const filter = (items) => items.filter((i) => perms.includes(i.permission)).map((i) => ({ ...i, children: i.children ? filter(i.children) : undefined }));
+      return { items: filter(nav), authenticated: true };
+    }
+    if (path === '/api/admin/overview') {
+      need('users.view');
+      return {
+        users: { total: USERS.length, blocked: USERS.filter((u) => u.status === 'blocked').length, active7d: 4 },
+        aiReports: { total: REPORTS.length, new: REPORTS.filter((r) => r.status === 'new').length, inProgress: REPORTS.filter((r) => r.status === 'in_progress').length, resolved: REPORTS.filter((r) => r.status === 'resolved').length },
+        feedback: { likes: 412, dislikes: 37 },
+        requests: { total: 1874, noData: 96 },
+        roles: ROLES.map((r) => ({ code: r.code, name: r.name, color: r.color, count: r.users })),
+        kb: { state: 'updates', stateLabel: 'Есть обновления', stateColor: '#F87171', lastSyncLabel: fmt(Date.now() - 42 * 60_000), documents: { total: 64, active: 58, archive: 6, rules: 27, laws: 31 }, versions: 143, chunks: 812, today: { newCount: 1, updatedCount: 2, archivedCount: 0 }, kbVersion: '6-20261005', intervalMinutes: 30 },
+        system: { env: 'production', db: 'postgres', aiProvider: 'groq', aiModel: 'llama-3.3-70b-versatile', aiConfigured: true, aiConfigReason: null, crawlerEnabled: false, syncRunning: false, discordEnabled: true, telegramEnabled: true, serverTime: fmt(Date.now()) },
+        recentAudit: AUDIT.slice(0, 8).map((a) => ({ ...a, createdAtLabel: fmt(a.createdAt) })),
+        permissions: perms,
+      };
+    }
+    if (path === '/api/health') return { ok: true, service: 'epic-ai-backend', version: '1.0.0', env: 'demo', db: { status: 'ok', driver: 'postgres', engine: 'pg' }, ai: { provider: 'groq', model: 'llama-3.3-70b-versatile' }, crawler: { enabled: false, respectRobots: true, running: false }, time: new Date().toISOString() };
+
+    fail(404, 'not_found', `Маршрут не найден: ${method} ${path}`);
+  }
+
+  function mapUser(u) {
+    const r = roleByCode(u.role);
+    return {
+      id: u.id, username: u.username, displayName: u.displayName, avatarUrl: u.avatarUrl, status: u.status,
+      blockedReason: u.blockedReason ?? null, createdAt: u.createdAt, lastLoginAt: u.lastLoginAt,
+      createdAtLabel: fmt(u.createdAt), lastLoginLabel: fmt(u.lastLoginAt),
+      roles: [{ id: r.level, code: r.code, name: r.name, color: r.color, level: r.level, isSystem: r.system }],
+      primaryRole: { code: r.code, name: r.name, color: r.color, level: r.level },
+      identities: [u.discord ? { provider: 'discord', ...u.discord } : null, u.telegram ? { provider: 'telegram', ...u.telegram } : null].filter(Boolean),
+      discord: u.discord ?? null, telegram: u.telegram ?? null,
+    };
+  }
+
+  function changesFor(day) {
+    const items = KB_CHANGES.filter((c) => c.day === day).map((c) => ({ id: c.id, day: c.day, documentId: c.documentId, versionId: c.versionId, changeKind: c.changeKind, title: c.title, docType: c.docType, url: c.url, changedWords: c.changedWords, totalWords: c.totalWords, createdAt: c.createdAt }));
+    return { day, items, counts: { new: items.filter((i) => i.changeKind === 'NEW').length, updated: items.filter((i) => i.changeKind === 'UPDATED').length, archived: items.filter((i) => i.changeKind === 'ARCHIVED').length } };
+  }
+
+  function fmt(v) {
+    if (!v) return '—';
+    const d = new Date(v);
+    if (Number.isNaN(d.getTime())) return '—';
+    const p = (n) => String(n).padStart(2, '0');
+    return `${p(d.getDate())}.${p(d.getMonth() + 1)}.${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
+
+  /* ----------------------- упрощённый «RAG» для демо ----------------------- */
+
+  const STOP = new Set(['что', 'такое', 'можно', 'нельзя', 'ли', 'какой', 'какая', 'как', 'это', 'или', 'если', 'при', 'для', 'по', 'в', 'на', 'и', 'а', 'не', 'с', 'о', 'к', 'из', 'до', 'за', 'то', 'бы', 'же', 'вы', 'мы', 'он', 'она', 'они', 'есть', 'мне', 'меня', 'его', 'её', 'их', 'чем', 'когда', 'где', 'почему', 'зачем', 'какие', 'каких', 'этом', 'этот', 'эта', 'эти', 'мне', 'вас']);
+
+  function tokens(s) {
+    return String(s ?? '').toLowerCase().match(/[a-zа-яё0-9]{2,}/gi)?.filter((t) => !STOP.has(t)) ?? [];
+  }
+  function stemOf(t) { return t.length > 5 ? t.slice(0, Math.max(3, t.length - 2)) : t; }
+
+  function mockSearch(question, mode) {
+    const q = tokens(question);
+    const stems = q.map(stemOf);
+    const docType = mode === 'laws' ? 'LAW' : 'RULE';
+    const scored = [];
+    for (const d of KB_DOCS) {
+      if (d.docType !== docType || d.status !== 'active') continue;
+      const text = `${d.title}\n${d.text}`.toLowerCase();
+      let score = 0;
+      const matched = new Set();
+      for (let i = 0; i < q.length; i++) {
+        const t = q[i]; const st = stems[i];
+        const hits = (text.match(new RegExp(st.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) ?? []).length;
+        if (hits) { score += Math.log(1 + hits) * (t.length > 4 ? 1.4 : 1); matched.add(t); }
+      }
+      if (score > 0) scored.push({ doc: d, score, matched: [...matched] });
+    }
+    scored.sort((a, b) => b.score - a.score);
+
+    const out = [];
+    for (const s of scored.slice(0, 3)) {
+      // выбираем наиболее релевантный фрагмент (по номеру пункта/статьи)
+      const paras = s.doc.text.split(/\n\n+/);
+      let best = paras[0]; let bestScore = -1;
+      for (const p of paras) {
+        const lower = p.toLowerCase();
+        let sc = 0;
+        for (const st of s.matched.map(stemOf)) sc += (lower.match(new RegExp(st.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) ?? []).length;
+        if (sc > bestScore) { bestScore = sc; best = p; }
+      }
+      const heading = best.split('\n')[0].slice(0, 90);
+      out.push({
+        index: out.length, chunkId: s.doc.id * 10 + out.length, documentId: s.doc.id, versionId: s.doc.version, version: s.doc.version,
+        docType: s.doc.docType, docTypeLabel: s.doc.docType === 'LAW' ? 'Законодательная база' : 'Правила',
+        title: s.doc.title, category: s.doc.category, section: s.doc.section, heading,
+        content: best, url: s.doc.url, revisionLabel: fmt(s.doc.sourceModifiedAt), sourceModifiedAt: s.doc.sourceModifiedAt,
+        threadId: s.doc.threadId, postId: s.doc.postId, score: Number(s.score.toFixed(2)), matchedTerms: s.matched, openLabel: 'Открыть источник ↗',
+      });
+    }
+    return out;
+  }
+
+  function mockAnswer(question, mode, sources) {
+    const q = String(question).toLowerCase();
+    const first = sources[0];
+    const cite = `${first.title}${first.heading ? `, ${first.heading}` : ''}`;
+
+    let verdict = 'depends';
+    let explanation;
+    if (/запрещ|нельзя|запрещено/.test(first.content)) verdict = 'forbidden';
+    else if (/обязан|разреш|допускается/.test(first.content)) verdict = 'allowed';
+
+    if (/dm|deathmatch|без причин|убивать/.test(q)) {
+      verdict = 'forbidden';
+      explanation = 'Убивать игрока или наносить ему урон без весомой IC причины запрещено — это DM (DeathMatch). Весомой причиной считается правильно отыгранная RP ситуация с предупреждением, самооборона при нападении или исполнение служебных обязанностей сотрудником государственной организации.';
+    } else if (/удостовер|документ/.test(q)) {
+      verdict = 'allowed';
+      explanation = 'Да: сотрудник обязан предоставить удостоверение личности при проверке, если игрок об этом попросил. Игрок, в свою очередь, обязан предоставить документы по первому требованию сотрудника.';
+    } else if (/зелён|зелен/.test(q)) {
+      verdict = 'forbidden';
+      explanation = 'В зелёных зонах запрещены любые противоправные действия, включая DM, DB, ограбления и похищения. Отыгрыш маски или другой подготовки это ограничение не отменяет.';
+    } else if (/убийств|статья 12/.test(q)) {
+      verdict = 'forbidden';
+      explanation = 'Убийство первой степени наказывается лишением свободы сроком на 150 месяцев и штрафом 200000 виртуальной валюты. Убийство второй степени — 80 месяцев и штраф 90000.';
+    } else if (/заложн/.test(q)) {
+      verdict = 'depends';
+      explanation = 'Захват заложника допускается только при наличии IC мотивации и отыгрыша. Использовать заложника как «живой щит» без переговоров запрещено, а одновременно можно удерживать не более двух человек.';
+    } else {
+      explanation = `По вашему вопросу найден официальный документ. ${first.content.split('\n').slice(-1)[0].slice(0, 220)}`;
+    }
+
+    return {
+      verdict,
+      verdictLabel: { allowed: 'Разрешено', forbidden: 'Запрещено', depends: 'Зависит от обстоятельств', unknown: 'Нет подтверждённых данных' }[verdict],
+      explanation,
+      basis: `${cite}: «${first.content.split('\n').slice(-1)[0].slice(0, 240)}»`,
+      confidence: 0.82,
+      sources,
+    };
+  }
+
+  /* ------------------------------ CSS для inline-источников ------------------------------ */
+
+  /* ------------------------------ демо-переключатель роли ------------------------------ */
+
+  function mountRoleSwitcher() {
+    if (document.querySelector('.demo-role-switch')) return;
+    const box = document.createElement('div');
+    box.className = 'demo-role-switch';
+    box.style.cssText = 'position:fixed;right:14px;top:12px;z-index:9999;display:flex;gap:6px;align-items:center;padding:6px 9px;border-radius:10px;background:rgba(18,20,22,.9);border:1px solid rgba(238,249,244,.12);font-family:inherit';
+    const label = document.createElement('span');
+    label.textContent = 'Роль в демо:';
+    label.style.cssText = 'font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#666';
+    const sel = document.createElement('select');
+    sel.style.cssText = 'background:#1A1A1A;color:#EEF9F4;border:1px solid rgba(238,249,244,.14);border-radius:6px;height:24px;font-size:11px;padding:0 6px';
+    for (const r of ROLES) {
+      const o = document.createElement('option');
+      o.value = r.code; o.textContent = r.name;
+      if (r.code === currentRole) o.selected = true;
+      sel.appendChild(o);
+    }
+    sel.addEventListener('change', () => { currentRole = sel.value; location.reload(); });
+    box.append(label, sel);
+    document.body.appendChild(box);
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    mountRoleSwitcher();
+    // splash-демо: транслируем события драйвера в канал preload'а
+    window.addEventListener('demo-splash-step', (e) => emit('splash:step', e.detail));
+    window.addEventListener('demo-splash-done', () => emit('splash:done', {}));
+    // окно источников в демо: отдаём payload по событию
+    if (window.__DEMO_SOURCES_AUTOLOAD__) {
+      setTimeout(() => emit('sources:data', window.__DEMO_SOURCES_PAYLOAD__ ?? DEMO_SOURCES_PAYLOAD), 60);
+    }
+  });
+
+  const DEMO_SOURCES_PAYLOAD = (() => {
+    const src = mockSearch('что такое DM и можно ли убивать без причины', 'rules');
+    const a = mockAnswer('что такое DM и можно ли убивать без причины', 'rules', src);
+    return { requestId: 901, question: 'Что такое DM и можно ли убивать игрока без причины?', mode: 'rules', modeLabel: 'ПРАВИЛА', verdict: a.verdict, verdictLabel: a.verdictLabel, kbVersion: '6-20261005', generatedAt: new Date().toISOString(), sources: src, relatedDocuments: [], noData: false, feedbackAllowed: true };
+  })();
+  window.__DEMO_SOURCES_PAYLOAD__ = DEMO_SOURCES_PAYLOAD;
+})();
+
+
+/* ==== util.js ==== */
+/**
+ * EPIC AI — утилиты renderer'а.
+ */
+
+function el(tag, attrs = {}, children = []) {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v === null || v === undefined || v === false) continue;
+    if (k === 'class') node.className = v;
+    else if (k === 'style' && typeof v === 'object') Object.assign(node.style, v);
+    else if (k === 'dataset') Object.assign(node.dataset, v);
+    else if (k === 'html') node.innerHTML = v;
+    else if (k.startsWith('on') && typeof v === 'function') node.addEventListener(k.slice(2).toLowerCase(), v);
+    else if (v === true) node.setAttribute(k, '');
+    else node.setAttribute(k, String(v));
+  }
+  for (const c of [].concat(children)) {
+    if (c === null || c === undefined || c === false) continue;
+    node.appendChild(typeof c === 'string' || typeof c === 'number' ? document.createTextNode(String(c)) : c);
+  }
+  return node;
+}
+
+const $ = (sel, root = document) => root.querySelector(sel);
+const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
+
+function clear(node) { while (node && node.firstChild) node.removeChild(node.firstChild); return node; }
+
+/** Формат даты: 05.10.2026 20:14 */
+function fmtDateTime(value, withTime = true) {
+  if (!value) return '—';
+  const d = value instanceof Date ? value : new Date(String(value));
+  if (Number.isNaN(d.getTime())) return '—';
+  const p = (n) => String(n).padStart(2, '0');
+  const date = `${p(d.getDate())}.${p(d.getMonth() + 1)}.${d.getFullYear()}`;
+  return withTime ? `${date} ${p(d.getHours())}:${p(d.getMinutes())}` : date;
+}
+
+function fmtDate(value) { return fmtDateTime(value, false); }
+
+function relativeTime(value) {
+  if (!value) return '—';
+  const d = new Date(String(value)).getTime();
+  if (Number.isNaN(d)) return '—';
+  const diff = Date.now() - d;
+  const min = Math.round(diff / 60000);
+  if (min < 1) return 'только что';
+  if (min < 60) return `${min} мин назад`;
+  const h = Math.round(min / 60);
+  if (h < 24) return `${h} ч назад`;
+  const days = Math.round(h / 24);
+  if (days < 8) return `${days} дн назад`;
+  return fmtDate(value);
+}
+
+function plural(n, one, few, many) {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return one;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return few;
+  return many;
+}
+
+function debounce(fn, ms = 250) {
+  let t = null;
+  return (...args) => {
+    clearTimeout(t);
+    t = setTimeout(() => fn(...args), ms);
+  };
+}
+
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+/**
+ * Подсветка найденных терминов внутри текста (: Accent — «выделение
+ * найденных элементов»). Работает по текстовому узлу, без innerHTML-инъекций.
+ */
+function highlight(text, terms) {
+  const frag = document.createDocumentFragment();
+  const src = String(text ?? '');
+  const words = [...new Set((terms ?? []).map((t) => String(t).trim()).filter((t) => t.length >= 2))]
+   .sort((a, b) => b.length - a.length);
+  if (!words.length) { frag.appendChild(document.createTextNode(src)); return frag; }
+
+  const pattern = new RegExp(`(${words.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'gi');
+  let last = 0;
+  for (const m of src.matchAll(pattern)) {
+    const idx = m.index ?? 0;
+    if (idx > last) frag.appendChild(document.createTextNode(src.slice(last, idx)));
+    const mark = document.createElement('mark');
+    mark.textContent = m[0];
+    mark.style.cssText = 'background:rgba(172,231,46,.20);color:#E2FF3F;border-radius:3px;padding:0 2px';
+    frag.appendChild(mark);
+    last = idx + m[0].length;
+  }
+  if (last < src.length) frag.appendChild(document.createTextNode(src.slice(last)));
+  return frag;
+}
+
+function toast(message, ms = 2600) {
+  const node = document.getElementById('toast');
+  if (!node) return;
+  node.textContent = message;
+  node.classList.add('is-visible');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => node.classList.remove('is-visible'), ms);
+}
+
+/** Открывает внешнюю ссылку в системном браузере. */
+async function openExternal(url) {
+  if (!url) return false;
+  try {
+    if (window.epicAI?.invoke) return await window.epicAI.invoke('epic:external', url);
+  } catch { /* ignore */ }
+  window.open(url, '_blank');
+  return true;
+}
+
+function initials(name) {
+  const parts = String(name ?? '?').trim().split(/[\s_.-]+/).filter(Boolean);
+  if (!parts.length) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[1][0]).toUpperCase();
+}
+
+function avatarNode(url, name, cls = 'avatar') {
+  if (url) {
+    const img = el('img', { class: cls, src: url, alt: name ?? '', referrerpolicy: 'no-referrer' });
+    img.addEventListener('error', () => {
+      const ph = el('div', { class: `${cls} avatar--placeholder` }, initials(name));
+      img.replaceWith(ph);
+    });
+    return img;
+  }
+  return el('div', { class: `${cls} avatar--placeholder` }, initials(name));
+}
+
+/**
+ * Аватар в режиме стримера (п.2 требований пользователя): заглушка-силуэт
+ * УБРАНА — вместо неё настоящее фото сильно размывается CSS-ом
+ * (.avatar--blurred): лицо и детали не читаются, но карточка не выглядит
+ * пустой. Ни ник, ни чёткое фото в стрим не попадают.
+ */
+function streamerAvatarNode(cls = 'avatar', url = null, name = null) {
+  if (url) {
+    const img = el('img', {
+      class: `${cls} avatar--blurred`, src: url, alt: '',
+      referrerpolicy: 'no-referrer', title: 'Аватар размыт (режим стримера)',
+    });
+    img.addEventListener('error', () => img.replaceWith(streamerAvatarNode(cls, null, name)));
+    return img;
+  }
+  return el('div', {
+    class: `${cls} avatar--placeholder avatar--blurred`,
+    title: 'Аватар размыт (режим стримера)',
+    'aria-label': 'Аватар скрыт',
+  }, initials(name));
+}
+
+/**
+ * Случайный ник для режима стримера: настоящий ник не светится в стриме.
+ * Ник НЕ постоянный: main process перегенерирует его при каждом запуске
+ * приложения, а renderer — при каждом включении режима (требование
+ * пользователя: «ник каждый раз новый»).
+ */
+function streamerName() {
+  const a = ['Neo', 'Fox', 'Echo', 'Nova', 'Pixel', 'Ghost', 'Turbo', 'Vega', 'Luna', 'Raptor', 'Sigma', 'Zephyr'];
+  const b = ['One', 'X', 'Prime', 'Core', 'Wave', 'Byte', 'Fox', 'Nord', 'Spark', 'Drift'];
+  const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+  return `${pick(a)}${pick(b)}_${100 + Math.floor(Math.random() * 900)}`;
+}
+
+
+/* ==== api.js ==== */
+/**
+ * EPIC AI — HTTP-клиент renderer'а.
+ *
+ * Renderer ходит ТОЛЬКО на backend. Cookie сессии живёт в партиции
+ * Electron и подставляется автоматически. Заголовок X-Epic-Client обязателен
+ * для мутирующих запросов (защита от CSRF).
+ */
+
+let backendUrl = 'http://127.0.0.1:8787';
+
+/**
+ * Токен сессии для заголовка Authorization.
+ *
+ * Окна renderer'а работают с file://, а Chromium не отправляет cookie
+ * с непрозрачного origin — поэтому токен приходит из main process через IPC
+ * (канал epic:session:token) и передаётся заголовком. В браузере
+ * (например, /ui/admin.html с самого backend) токена нет — работают cookie.
+ */
+let authToken = null;
+
+function setBackendUrl(url) {
+  backendUrl = String(url || '').replace(/\/$/, '');
+}
+function getBackendUrl() { return backendUrl; }
+
+async function initAuth() {
+  try {
+    authToken = (await window.epicAI?.invoke('epic:session:token')) ?? null;
+  } catch { authToken = null; }
+  return authToken;
+}
+function getAuthToken() { return authToken; }
+
+class ApiError extends Error {
+  constructor(status, code, message) {
+    super(message || `HTTP ${status}`);
+    this.status = status;
+    this.code = code;
+  }
+}
+
+async function request(method, path, body, opts = {}) {
+  const headers = { 'X-Epic-Client': 'desktop',...(opts.headers || {}) };
+  if (authToken) headers.Authorization = `Bearer ${authToken}`;
+  if (body !== undefined) headers['Content-Type'] = 'application/json';
+
+  let res;
+  try {
+    res = await fetch(`${backendUrl}${path}`, {
+      method,
+      headers,
+      credentials: 'include',
+      body: body === undefined ? undefined : JSON.stringify(body),
+      signal: AbortSignal.timeout(opts.timeout ?? 60_000),
+    });
+  } catch (e) {
+    throw new ApiError(0, 'network_error', `Backend недоступен: ${e.message}`);
+  }
+
+  // Сессия могла появиться/обновиться уже после старта окна (вход в другом
+  // окне) — один раз перечитываем токен и повторяем запрос.
+  if (res.status === 401 && !opts._retried) {
+    const token = await initAuth();
+    if (token) return request(method, path, body, {...opts, _retried: true });
+  }
+
+  const text = await res.text();
+  let json = null;
+  if (text) { try { json = JSON.parse(text); } catch { json = { raw: text.slice(0, 500) }; } }
+
+  if (!res.ok) {
+    throw new ApiError(res.status, json?.error ?? 'error', json?.message ?? `HTTP ${res.status}`);
+  }
+  return json;
+}
+
+const api = {
+  get: (p, o) => request('GET', p, undefined, o),
+  post: (p, b, o) => request('POST', p, b ?? {}, o),
+  put: (p, b, o) => request('PUT', p, b ?? {}, o),
+  patch: (p, b, o) => request('PATCH', p, b ?? {}, o),
+  del: (p, o) => request('DELETE', p, undefined, o),
+};
+
+/* ---------------- Типовые вызовы ---------------- */
+
+const Auth = {
+  me: () => api.get('/api/auth/me'),
+  logout: () => api.post('/api/auth/logout'),
+  providers: () => api.get('/api/auth/providers'),
+};
+
+const Ai = {
+  ask: (mode, question) => api.post('/api/ai/ask', { mode, question }, { timeout: 90_000 }),
+  search: (mode, q) => api.get(`/api/ai/search?mode=${encodeURIComponent(mode)}&q=${encodeURIComponent(q)}`),
+  sources: (requestId) => api.get(`/api/ai/sources?requestId=${requestId}`),
+  history: (limit = 20) => api.get(`/api/ai/history?limit=${limit}`),
+  request: (id) => api.get(`/api/ai/request/${id}`),
+  meta: () => api.get('/api/ai/meta'),
+  /**
+   * Голосовой ввод: сырая аудиозапись (Blob audio/webm) → текст.
+   * Распознаёт backend (Groq Whisper); ключ API в клиент не передаётся.
+   */
+  transcribe: async (blob) => {
+    const headers = { 'X-Epic-Client': 'desktop' };
+    // П.2 раунда 34: ArrayBuffer-тело (раунд 28) не несёт неявного
+    // Content-Type, а Fastify без него отвечает 415 Unsupported Media Type —
+    // тип аудио ставим явно.
+    headers['Content-Type'] = blob.type || 'audio/webm';
+    if (authToken) headers.Authorization = `Bearer ${authToken}`;
+    let res;
+    try {
+      res = await fetch(`${backendUrl}/api/ai/transcribe`, {
+        method: 'POST', headers,
+        // ArrayBuffer вместо Blob: известный Content-Length убирает chunked
+        // data-pipe upload, из-за которого Chromium логил
+        // «chunked_data_pipe_upload_data_stream.cc OnSizeReceived failed» (п.1 раунда 28).
+        body: await blob.arrayBuffer(),
+        credentials: 'include',
+        signal: AbortSignal.timeout(90_000),
+      });
+    } catch (e) {
+      throw new ApiError(0, 'network_error', `Backend недоступен: ${e.message}`);
+    }
+    const text = await res.text();
+    let json = null;
+    if (text) { try { json = JSON.parse(text); } catch { json = { raw: text.slice(0, 300) }; } }
+    if (!res.ok) throw new ApiError(res.status, json?.error ?? 'error', json?.message ?? `HTTP ${res.status}`);
+    return json;
+  },
+  /** Дневной лимит запросов: { used, limit, left, resetAt, personal }. */
+  quota: () => api.get('/api/ai/quota'),
+  feedbackCategories: () => api.get('/api/ai/feedback/categories'),
+  like: (requestId) => api.post('/api/ai/feedback/like', { requestId }),
+  report: (requestId, category, comment) => api.post('/api/ai/reports', { requestId, category, comment }),
+};
+
+const Kb = {
+  status: () => api.get('/api/kb/status'),
+  sync: (full = false) => api.post('/api/kb/sync', { full }),
+  today: () => api.get('/api/kb/changes/today'),
+  changes: (day) => api.get(`/api/kb/changes${day ? `?day=${encodeURIComponent(day)}` : ''}`),
+  history: (limit = 60) => api.get(`/api/kb/changes/history?limit=${limit}`),
+  change: (id) => api.get(`/api/kb/changes/${id}`),
+  logs: (limit = 20) => api.get(`/api/kb/sync/logs?limit=${limit}`),
+};
+
+const Users = {
+  me: () => api.get('/api/users/me'),
+  // Самостоятельное переименование УДАЛЕНО по требованию пользователя:
+  // никнейм приходит из Discord/Telegram при входе и синхронизируется
+  // backend'ом (users/service.ts). Ручная правка — только через CLI.
+};
+
+const Settings = {
+  get: () => api.get('/api/settings/me'),
+  save: (patch) => api.put('/api/settings/me', patch),
+  reset: () => api.post('/api/settings/me/reset'),
+};
+
+
+/* ==== profileview.js ==== */
+/**
+ * EPIC AI — профиль как РАЗДЕЛ НАСТРОЕК (п.4, п.5 требований пользователя).
+ *
+ * Раньше профиль жил в отдельном BrowserWindow и открывался из dropdown-меню
+ * пилюли пользователя. Теперь окно удалено: содержимое профиля рисуется
+ * вкладкой «Профиль» внутри выпадающей области настроек основной панели.
+ *
+ * Состав (референс пользователя): шапка (аватар, имя, роль, «@ник · вход
+ * через Telegram»), карточка «Ответы ИИ сегодня» с остатком дневного лимита
+ * и прогресс-баром, карточка выхода из аккаунта (+ вход в админ-панель для
+ * администрации), сводка аккаунта.
+ */
+
+/** «вход через Telegram» / «вход через Discord» — по привязанным identity. */
+function providerLabel(u) {
+  const ids = u?.identities ?? [];
+  if (ids.some((i) => i.provider === 'telegram')) return 'вход через Telegram';
+  if (ids.some((i) => i.provider === 'discord')) return 'вход через Discord';
+  return 'внешний провайдер';
+}
+
+function displayName(ctx, u) {
+  if (ctx.settings?.streamerMode) return ctx.settings.streamerNick || 'Стример';
+  return u?.displayName || u?.username || '—';
+}
+
+function headCard(ctx, u) {
+  const ava = ctx.settings?.streamerMode
+    ? streamerAvatarNode('prof-ava', u.avatarUrl, u.displayName || u.username)
+    : avatarNode(u.avatarUrl, u.displayName || u.username, 'prof-ava');
+  return el('div', { class: 'prof-head' }, [
+    ava,
+    el('div', { class: 'prof-id' }, [
+      el('div', { class: 'prof-name' }, displayName(ctx, u)),
+      u.primaryRole
+        ? el('span', { class: 'role-pill', style: { color: u.primaryRole.color } }, [el('span', { class: 'dot' }), u.primaryRole.name])
+        : null,
+      el('div', { class: 'prof-login' }, ctx.settings?.streamerMode ? '@•••••• · стрим-режим' : `@${u.username ?? '—'} · ${providerLabel(u)}`),
+    ]),
+  ]);
+}
+
+/** Карточка «Ответы ИИ сегодня»: крупный остаток + прогресс-бар + подпись. */
+function quotaCard() {
+  const big = el('div', { class: 'prof-quota__big' }, '…');
+  const bar = el('span', { style: { width: '100%' } });
+  const caption = el('div', { class: 'prof-caption' }, 'Загружаем лимит…');
+  const card = el('div', { class: 'prof-card' }, [
+    el('div', { class: 'prof-card__title' }, 'Ответы ИИ сегодня'),
+    big,
+    el('div', { class: 'prof-bar' }, bar),
+    caption,
+  ]);
+  void Ai.quota().then((q) => {
+    const left = Number(q?.left ?? 0);
+    const limit = Number(q?.limit ?? 0);
+    big.textContent = '';
+    big.classList.toggle('is-empty', left <= 0);
+    big.append(
+      el('b', {}, `${left} из ${limit}`),
+      el('span', {}, 'осталось'),
+    );
+    bar.style.width = limit > 0 ? `${Math.round((left / limit) * 100)}%` : '0%';
+    const reset = q?.resetAt ? fmtDateTime(q.resetAt) : '00:00 по Москве';
+    caption.textContent = `Новые ответы появятся в ${reset} — лимит сбрасывается ежедневно${q?.personal ? ' (персональный лимит выдан администратором)' : ''}.`;
+  }).catch(() => {
+    big.textContent = '';
+    big.appendChild(el('b', {}, '—'));
+    caption.textContent = 'Лимит недоступен: backend не отвечает.';
+    bar.style.width = '0%';
+  });
+  return card;
+}
+
+/** Карточка «Выйти из аккаунта» + (для администрации) «Админ панель». */
+function logoutCard(ctx) {
+  return el('div', { class: 'prof-card' }, [
+    el('div', { class: 'prof-card__title' }, 'Выйти из аккаунта'),
+    el('div', { class: 'prof-logout__row' }, [
+      el('div', { class: 'prof-logout__text' }, 'Сессия будет отозвана, а Epic AI вернётся к окну входа. Настройки аккаунта сохранятся на сервере.'),
+      el('button', {
+        class: 'btn btn--danger', type: 'button',
+        onClick: () => { ctx.onLogout?.(); },
+      }, 'Выйти'),
+    ]),
+    ctx.canAdmin
+      ? el('div', { class: 'prof-logout__row' }, [
+          el('div', { class: 'prof-logout__text' }, 'Управление пользователями, ошибками ИИ и базой знаний.'),
+          el('button', {
+            class: 'btn', type: 'button',
+            onClick: () => { ctx.onOpenAdmin?.(); },
+          }, 'Админ панель'),
+        ])
+      : null,
+  ]);
+}
+
+/** Короткая сводка аккаунта (даты, провайдеры) — внизу раздела. */
+function detailsCard(u) {
+  const line = (name, value) => el('div', { class: 'prof-detail__row' }, [
+    el('span', {}, name),
+    el('b', { class: 'mono' }, value),
+  ]);
+  return el('div', { class: 'prof-card prof-details' }, [
+    el('div', { class: 'prof-card__title' }, 'Аккаунт'),
+    line('ID', `#${u.id ?? '—'}`),
+    line('Статус', u.status === 'active' ? 'active' : String(u.status ?? '—')),
+    line('Аккаунт создан', fmtDateTime(u.createdAt)),
+    line('Последний вход', fmtDateTime(u.lastLoginAt)),
+  ]);
+}
+
+/**
+ * Раздел «Профиль» настроек. Контекст — тот же, что передаёт main.js
+ * в initSettings(): user, permissions, settings, canAdmin, onLogout, onOpenAdmin.
+ */
+function buildProfileSection(ctx) {
+  const host = el('div', { class: 'set-page' });
+  const u = ctx.user;
+  if (!u) {
+    host.appendChild(el('div', { class: 'empty' }, 'Нет данных пользователя — требуется вход.'));
+    return host;
+  }
+  host.append(
+    el('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' } }, [
+      el('button', {
+        class: 'btn btn--ghost btn--sm', type: 'button',
+        onClick: () => ctx.onNavigate?.('main'),
+      }, '← к настройкам'),
+      el('span', { class: 'section-title', style: { margin: '0' } }, 'Профиль и аккаунт'),
+    ]),
+    headCard(ctx, u),
+    quotaCard(),
+    logoutCard(ctx),
+    detailsCard(u),
+  );
+  return host;
+}
+
+
+
+
+/* ==== settings.js ==== */
+/**
+ * EPIC AI — настройки панели (референс-стиль: сайдбар + строки-карточки).
+ *
+ * Разделы (по требованиям пользователя):
+ *   Основное · Правила · Клавиши · Производительность · Частые вопросы
+ *
+ * Вкладки «Интерфейс» НЕТ: прозрачность перенесена в «Основное».
+ * Вкладки «Профиль» НЕТ: профиль открывается отдельным окном (profile.html)
+ * по клику на шапку меню пользователя или пункт «Профиль и аккаунт».
+ *
+ * Настройки НЕ открывают отдельное окно: панель разворачивается вниз.
+ */
+
+
+
+/* ------------------------------------------------------------------ */
+/*  Применение визуальных настроек к DOM                               */
+/* ------------------------------------------------------------------ */
+
+function applyVisualSettings(s) {
+  const root = document.documentElement;
+  const op = clamp(s.opacity ?? 0.82, 0.35, 1);
+  root.style.setProperty('--panel-alpha', op.toFixed(3));
+  root.style.setProperty('--surface-alpha', clamp(Math.min(1, op + 0.02), 0.3, 1).toFixed(3));
+  root.style.setProperty('--muted-alpha', clamp(op - 0.05, 0.25, 1).toFixed(3));
+  root.style.setProperty('--base-alpha', clamp(Math.min(1, op + 0.08), 0.3, 1).toFixed(3));
+  root.style.setProperty('--drop-alpha', clamp(Math.min(1, op + 0.14), 0.3, 1).toFixed(3));
+  root.dataset.lowperf = s.lowPerformanceMode ? 'true' : 'false';
+  // Режим стримера: аватары размываются CSS-ом, ники подменяются в main.js
+  root.dataset.streamer = s.streamerMode ? 'true' : 'false';
+}
+
+function clamp(v, min, max) { const n = Number(v); return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : min; }
+
+/* ------------------------------------------------------------------ */
+/*  Иконки разделов                                                     */
+/* ------------------------------------------------------------------ */
+
+const I = {
+  main: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 8h10M18 8h2M4 16h4M12 16h8"/><circle cx="16" cy="8" r="2.2"/><circle cx="10" cy="16" r="2.2"/></svg>',
+  perf: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M13 2.5L5 13.5h5.5L10 21.5l8-11h-5.5z"/></svg>',
+  rules: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4M9.5 12h6M9.5 16h6"/></svg>',
+  keys: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="2.5" y="6.5" width="19" height="11" rx="2.5"/><path d="M6 10h.01M9.5 10h.01M13 10h.01M16.5 10h.01M6 13.5h.01M18 13.5h.01M9 13.5h6" stroke-linecap="round"/></svg>',
+  faq: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.4a2.5 2.5 0 1 1 3.4 2.3c-.8.35-1.9-1 1.8"/><path d="M12 16.8v.2"/></svg>',
+};
+
+/**
+ * Разделы настроек (требования пользователя):
+ *  — вкладка «Интерфейс» УБРАНА: прозрачность переехала в «Основное»;
+ *  — вкладка «Профиль» ВЕРНУТА в настройки (п.4, п.5): отдельное окно профиля
+ *    удалено, пилюля пользователя открывает настройки сразу на ней.
+ */
+const SECTIONS = [
+  { id: 'main', label: 'Основное', icon: I.main },
+  { id: 'rules', label: 'Правила', icon: I.rules },
+  { id: 'keys', label: 'Клавиши', icon: I.keys },
+  { id: 'perf', label: 'Производительность', icon: I.perf },
+  { id: 'faq', label: 'Частые вопросы', icon: I.faq },
+];
+
+/**
+ * Скрытые разделы: «Профиль» НЕ показывается в навигации настроек
+ * (п.2 раунда 19) — в него попадает только клик по пилюле пользователя
+ * (п.3), внутри есть кнопка возврата к настройкам.
+ */
+const HIDDEN_SECTIONS = ['profile'];
+
+function isKnownSection(id) {
+  return Boolean(id) && (SECTIONS.some((s) => s.id === id) || HIDDEN_SECTIONS.includes(id));
+}
+
+/* ------------------------------------------------------------------ */
+/*  Контекст                                                            */
+/* ------------------------------------------------------------------ */
+
+let ctx = null;
+let activeSection = null;
+
+function initSettings(context) { ctx = context; }
+
+function renderSettings(container, section) {
+  if (!ctx) return;
+  activeSection = isKnownSection(section) ? section : 'main';
+
+  const side = container.querySelector('#settings-side');
+  const pages = container.querySelector('#settings-pages');
+  if (!side || !pages) return;
+
+  /* --- сайдбар: карточка пользователя, навигация, версия --- */
+  clear(side);
+  const u = ctx.user ?? {};
+  side.append(
+    el('div', { class: 'side-user' }, [
+      // Режим стримера: настоящее фото, сильно размытое (п.2)
+      ctx.settings?.streamerMode
+        ? streamerAvatarNode('side-user__ava', u.avatarUrl, u.displayName || u.username)
+        : avatarNode(u.avatarUrl, u.displayName || u.username, 'side-user__ava'),
+      el('div', { style: { minWidth: '0' } }, [
+        el('div', { class: 'side-user__name' }, ctx.settings?.streamerMode ? (ctx.settings.streamerNick || u.displayName || '—') : (u.displayName || u.username || '—')),
+        el('div', { class: 'side-user__nick' }, ctx.settings?.streamerMode ? '@••••••' : `@${u.username ?? '—'}`),
+      ]),
+    ]),
+    el('nav', { class: 'set-nav' }, SECTIONS.map((s) => el('button', {
+      class: `settings__nav-item${s.id === activeSection ? ' is-active' : ''}`,
+      type: 'button',
+      onClick: () => ctx.onNavigate?.(s.id),
+    }, [el('span', { html: s.icon, style: { display: 'inline-flex', width: '15px', height: '15px' } }), s.label]))),
+    el('div', { class: 'side-foot' }, [
+      el('span', { class: 'dot', id: 'side-status-dot' }),
+      el('span', { id: 'side-version' }, `v${ctx.appVersion ?? '1.0.0'}`),
+      el('span', { class: 'grow' }),
+      el('span', { id: 'side-kb' }, 'база: …'),
+    ]),
+  );
+  void refreshSideStatus();
+
+  /* --- страница --- */
+  // П.8: клик по элементу ВНУТРИ раздела не должен отматывать список наверх.
+  // Скролл сбрасывается только при СМЕНЕ раздела, а перерисовка того же
+  // раздела (переключатель, сохранение настройки) сохраняет позицию.
+  const sameSection = pages.dataset.section === activeSection;
+  const keepScroll = sameSection ? pages.scrollTop : 0;
+  clear(pages);
+  pages.appendChild(buildSection(activeSection));
+  pages.dataset.section = activeSection;
+  pages.scrollTop = keepScroll;
+  ctx.onResize?.(measureHeight(activeSection));
+}
+
+async function refreshSideStatus() {
+  const dot = document.getElementById('side-status-dot');
+  const kb = document.getElementById('side-kb');
+  if (!dot || !kb) return;
+  try {
+    const st = await Kb.status();
+    kb.textContent = `база: ${st.documents.active} док. · ${st.stateLabel.toLowerCase()}`;
+    dot.className = `dot${st.state === 'error' ? ' err' : ''}`;
+    dot.style.background = st.stateColor;
+    dot.style.boxShadow = `0 0 8px ${st.stateColor}`;
+  } catch {
+    kb.textContent = 'база недоступна';
+    dot.className = 'dot err';
+  }
+}
+
+/**
+ * Высота области настроек ФИКСИРОВАННАЯ и не зависит от вкладки: окно не
+ * «прыгает» при переключении разделов, содержимое скроллится внутри
+ * .set-main.scroll.
+ */
+function measureHeight(_section) {
+  return 520;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Конструкторы строк                                                  */
+/* ------------------------------------------------------------------ */
+
+function page(title, sub,...nodes) {
+  return el('div', {}, [
+    el('div', { class: 'set-title' }, title),
+    sub ? el('div', { class: 'set-sub' }, sub) : el('div', { style: { height: '12px' } }),
+   ...nodes,
+  ]);
+}
+
+function card(...rows) {
+  return el('div', { class: 'opt-card' }, rows.filter(Boolean));
+}
+
+function row(name, desc, control) {
+  return el('div', { class: 'opt-row' }, [
+    el('div', { class: 'opt-row__label' }, [
+      el('div', { class: 'opt-row__name' }, name),
+      desc ? el('div', { class: 'opt-row__desc' }, desc) : null,
+    ]),
+    el('div', { class: 'opt-row__control' }, [].concat(control)),
+  ]);
+}
+
+function toggle(key, current, onChange) {
+  const input = el('input', { type: 'checkbox' });
+  input.checked = Boolean(current);
+  input.addEventListener('change', () => onChange(key, input.checked));
+  return el('label', { class: 'switch' }, [input, el('span', { class: 'track' }), el('span', { class: 'thumb' })]);
+}
+
+function select(key, current, options, onChange) {
+  const sel = el('select', { class: 'sel' }, options.map((o) => el('option', { value: o.value,...(String(o.value) === String(current) ? { selected: true } : {}) }, o.label)));
+  sel.value = String(current);
+  sel.addEventListener('change', () => onChange(key, sel.value));
+  return sel;
+}
+
+function range(key, current, { min, max, step, format }, onChange) {
+  const value = el('span', { class: 'range-value' }, format(current));
+  const input = el('input', { class: 'range', type: 'range', min: String(min), max: String(max), step: String(step) });
+  input.value = String(current);
+  input.addEventListener('input', () => { value.textContent = format(Number(input.value)); });
+  input.addEventListener('change', () => onChange(key, Number(input.value)));
+  return [input, value];
+}
+
+/** Кейкапы: 'Ctrl+Shift+P' → [Ctrl][Shift][P]. */
+function kbdRow(combo, { editable = false, onEdit } = {}) {
+  const parts = String(combo ?? '').split('+').filter(Boolean);
+  const wrap = el('span', { class: `kbd-row${editable ? ' is-editable' : ''}` }, parts.map((p) => el('span', { class: p.length > 2 ? 'kbd kbd--wide' : 'kbd' }, p)));
+  if (editable && onEdit) wrap.addEventListener('click', () => onEdit(wrap));
+  return wrap;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Разделы                                                             */
+/* ------------------------------------------------------------------ */
+
+function buildSection(id) {
+  const s = ctx.settings;
+  switch (id) {
+    case 'profile': return buildProfileSection(ctx);
+    case 'main': return pageMain(s);
+    case 'perf': return pagePerf(s);
+    case 'rules': return pageRules();
+    case 'keys': return pageKeys(s);
+    case 'faq': return pageFaq();
+    default: return pageMain(s);
+  }
+}
+
+/* ---------- Основное  ---------- */
+
+function pageMain(s) {
+  const change = ctx.onChange;
+  return page('Основное', 'Горячая клавиша, окно, прозрачность, микрофон и режим стримера — всё, что нужно каждый день.',
+    card(
+      row('Горячая клавиша', 'Показать или скрыть окно поверх игры', kbdRow(s.hotkey, {
+        editable: true,
+        onEdit: (wrap) => captureHotkey(wrap, s.hotkey, async (acc) => {
+          const res = await window.epicAI?.invoke('epic:hotkey:set', acc).catch(() => null);
+          if (res?.ok) { change('hotkey', res.requested); toast(`Горячая клавиша: ${res.requested}`); }
+          else toast('Сочетание занято системой — оставлено прежнее');
+        }),
+      })),
+      row('Поверх всех окон', 'Держать оверлей поверх игры (уровень screen-saver). Закреплённое окно НЕ прячется при клике по игре', toggle('alwaysOnTop', s.alwaysOnTop, change)),
+      row('Запускать вместе с Windows', 'Автозапуск в свёрнутом виде', toggle('autostart', s.autostart, change)),
+      // Прозрачность переехала сюда из убранной вкладки «Интерфейс»
+      row('Прозрачность', 'Общая полупрозрачность панели и выпадающих областей', range('opacity', s.opacity, { min: 0.4, max: 1, step: 0.02, format: (v) => `${Math.round(v * 100)}%` }, change)),
+      // Выбор устройства микрофона для голосового ввода (п.13)
+      row('Микрофон', 'Устройство записи для голосовых запросов', micDeviceSelect(s.micDeviceId, change)),
+    ),
+    card(
+      row('Скрывать при клике вне окна', 'Клик по игре прячет панель и источники; приложение остаётся в трее. Не работает, пока окно закреплено звёздочкой', toggle('hideOnOutsideClick', s.hideOnOutsideClick, change)),
+      row('Очищать предыдущий ответ', 'Новый вопрос заменяет старый ответ', toggle('clearPreviousAnswer', s.clearPreviousAnswer, change)),
+      row('Сохранять выбранный режим', 'Запоминать «Правила» / «Законы» между запусками', toggle('rememberMode', s.rememberMode, change)),
+      row('Режим по умолчанию', 'Если сохранение выключено', select('defaultMode', s.defaultMode, [
+        { value: 'rules', label: 'Правила' }, { value: 'laws', label: 'Законы' },
+      ], change)),
+      row('Подтверждать вопрос', 'Перед отправкой показывать отдельное окно «Спросить ИИ?» с остатком запросов на сегодня', toggle('confirmAiAsk', s.confirmAiAsk !== false, change)),
+    ),
+    card(
+      row('Режим стримера', 'Скрывает настоящее имя и лицо: случайный ник вместо вашего, вместо аватара — нейтральная заглушка', toggle('streamerMode', s.streamerMode, async (k, v) => {
+        // Ник генерируется ЗАНОВО при каждом включении режима (требование
+        // пользователя) — и дополнительно при каждом запуске приложения.
+        if (v) await ctx.onChange('streamerNick', streamerName());
+        await ctx.onChange(k, v);
+      })),
+      s.streamerMode && s.streamerNick
+        ? row('Ник в стриме', 'Меняется при каждом запуске приложения и включении режима', el('span', { class: 'mono', style: { fontSize: '11px' } }, s.streamerNick))
+        : null,
+    ),
+    el('div', { class: 'kb-note' }, 'Панель можно перетащить за любое свободное место — она останется там, где вы её оставили. Живой фон (съёмка экрана под окном) убран полностью: он нагружал систему и мешал игре.'),
+  );
+}
+
+/**
+ * Селект устройства микрофона (п.13): список audioinput из
+ * navigator.mediaDevices.enumerateDevices(). Названия устройств браузер
+ * отдаёт только после разрешения на микрофон — до этого показываем
+ * «Микрофон N». Значение сохраняется в настройке micDeviceId.
+ */
+function micDeviceSelect(current, onChange) {
+  const sel = el('select', { class: 'sel', style: { maxWidth: '190px' } });
+  sel.appendChild(el('option', { value: '' }, 'По умолчанию'));
+  sel.value = String(current ?? '');
+  sel.addEventListener('change', () => onChange('micDeviceId', sel.value || null));
+  const fill = async () => {
+    try {
+      if (!navigator.mediaDevices?.enumerateDevices) throw new Error('нет mediaDevices');
+      const devices = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'audioinput');
+      if (!devices.length) throw new Error('нет устройств');
+      devices.forEach((d, i) => {
+        sel.appendChild(el('option', { value: d.deviceId }, d.label || `Микрофон ${i + 1}`));
+      });
+      sel.value = String(current ?? '');
+      if (sel.selectedIndex < 0) sel.value = '';
+    } catch {
+      // Нет доступа к списку устройств (или окружение без mediaDevices) —
+      // оставляем только «По умолчанию».
+      sel.title = 'Список устройств недоступен — используется устройство по умолчанию';
+    }
+  };
+  void fill();
+  return sel;
+}
+
+/** Перехват сочетания клавиш для горячей клавиши. */
+function captureHotkey(wrap, fallback, onDone) {
+  let listening = false;
+  const caps = () => [...wrap.querySelectorAll('.kbd')];
+  const onKey = (e) => {
+    if (!listening) return;
+    e.preventDefault(); e.stopPropagation();
+    if (e.key === 'Escape') { stop(); return; }
+    if (['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) return;
+    const parts = [];
+    if (e.ctrlKey || e.metaKey) parts.push('Ctrl');
+    if (e.altKey) parts.push('Alt');
+    if (e.shiftKey) parts.push('Shift');
+    let key = e.key;
+    if (key === ' ') key = 'Space';
+    else if (key.length === 1) key = key.toUpperCase();
+    parts.push(key);
+    stop();
+    void onDone(parts.join('+'));
+  };
+  const start = () => { listening = true; wrap.classList.add('is-listening'); clear(wrap); wrap.appendChild(el('span', { class: 'kbd kbd--wide' }, 'Нажмите сочетание…')); window.addEventListener('keydown', onKey, true); };
+  const stop = () => { listening = false; wrap.classList.remove('is-listening'); window.removeEventListener('keydown', onKey, true); clear(wrap); String(fallback).split('+').forEach((p) => wrap.appendChild(el('span', { class: p.length > 2 ? 'kbd kbd--wide' : 'kbd' }, p))); };
+  start();
+}
+
+/* ---------- Производительность  ---------- */
+
+function pagePerf(s) {
+  const change = ctx.onChange;
+  return page('Производительность', 'Если игра проседает по FPS — начните с «Режима снижения нагрузки».',
+    card(
+      row('Аппаратное ускорение (Vulkan)', 'Рендер интерфейса через GPU: Chromium использует Vulkan (ANGLE). Применяется после перезапуска', toggle('hardwareAcceleration', s.hardwareAcceleration, async (k, v) => {
+        await change(k, v);
+        if (confirm('Изменение вступит в силу после перезапуска Epic AI. Перезапустить сейчас?')) {
+          await window.epicAI?.invoke('epic:app:relaunch').catch(() => {});
+        }
+      })),
+      row('Режим снижения нагрузки', 'Выключает анимации интерфейса одним переключателем', toggle('lowPerformanceMode', s.lowPerformanceMode, change)),
+    ),
+    el('div', { class: 'kb-note' }, 'Оверлей оптимизирован: живой фон и съёмка экрана убраны полностью, перетаскивание и раскрытие окна не шлют лишние вызовы — интерфейс не лагает даже на слабых ПК.'),
+  );
+}
+
+/* ---------- Правила: состояние базы (референс: карточки обновлений) ---------- */
+
+function pageRules() {
+  const wrap = page('Правила', 'База знаний EpicRP: сегодняшние обновления документов и последние изменения.');
+  const host = el('div', {}, [el('div', { class: 'empty' }, [el('span', { class: 'spinner' })])]);
+  wrap.appendChild(host);
+  void loadRulesPage(host);
+  return wrap;
+}
+
+/** Локальная дата YYYY-MM-DD — ключ дня для списка изменений базы. */
+function todayKey() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+function rulesChip(label, n) {
+  return el('span', { class: 'role-pill', style: { color: 'var(--text-muted)' } }, [
+    el('span', { class: 'dot' }), `${label} ${n}`,
+  ]);
+}
+
+async function loadRulesPage(host) {
+  let st;
+  try { st = await Kb.status(); }
+  catch (e) { clear(host); host.appendChild(el('div', { class: 'notice' }, [el('div', {}, [el('b', {}, 'База недоступна. '), e.message])])); return; }
+
+  const t = st.today ?? {};
+  const chips = [];
+  if (t.newCount) chips.push(rulesChip('новых', t.newCount));
+  if (t.updatedCount) chips.push(rulesChip('изменены', t.updatedCount));
+  if (t.archivedCount) chips.push(rulesChip('в архиве', t.archivedCount));
+
+  clear(host);
+  host.append(
+    // Карточка-статус: база обновлена сегодня
+    el('div', { class: 'opt-card rules-status' }, [
+      el('div', { class: 'rules-status__title' }, 'Обновлены сегодня'),
+      el('div', { class: 'rules-status__meta' }, `база v${st.kbVersion} · синхронизация ${st.lastSyncLabel}`),
+    ]),
+    el('div', { class: 'rules-caption' }, 'Последние изменения'),
+    // Карточка изменений: чипы «изменены N» + кнопка «Посмотреть»
+    el('div', { class: 'opt-card' }, [
+      el('div', { class: 'rules-changes__head' }, [
+        el('div', { class: 'rules-changes__title' }, 'Обновление сегодня'),
+        el('button', { class: 'btn', type: 'button', onClick: () => ctx.onOpenKb?.('updates', todayKey()) }, 'Посмотреть'),
+      ]),
+      el('div', { class: 'rules-chips' }, chips.length ? chips : [
+        el('span', { class: 'subtle', style: { fontSize: '11px' } }, 'Сегодня изменений нет'),
+      ]),
+    ]),
+    // Кнопка «История изменений» из вкладки «Правила» УБРАНА (требование
+    // пользователя): история изменений доступна в самой области базы знаний
+    // (переключатель «Посмотреть / История изменений» при открытии БЗ).
+    st.lastError ? el('div', { class: 'notice' }, [el('div', {}, [el('b', {}, 'Ошибка синхронизации: '), st.lastError])]) : null,
+    el('div', { class: 'kb-note' }, 'База обновляется автоматически при запуске приложения и по расписанию — кнопка ручного обновления не нужна.'),
+  );
+}
+
+/* ---------- Клавиши (референс) ---------- */
+
+function pageKeys(s) {
+  const editLocal = (key, fallback) => ({
+    editable: true,
+    onEdit: (wrap) => captureHotkey(wrap, fallback, (acc) => {
+      ctx.onChange(key, acc);
+      toast(`Сочетание назначено: ${acc}`);
+    }),
+  });
+  const rows = [
+    { main: true, label: 'Показать или скрыть окно', combo: s.hotkey, editable: true },
+    { label: 'История ответов ИИ', combo: s.comboHistory ?? 'Ctrl+H', edit: editLocal('comboHistory', s.comboHistory ?? 'Ctrl+H') },
+    { label: 'Открыть источники ответа', combo: s.comboSources ?? 'Ctrl+O', edit: editLocal('comboSources', s.comboSources ?? 'Ctrl+O') },
+    { label: 'Закрепить окно поверх игры', combo: s.comboPin ?? 'Ctrl+P', edit: editLocal('comboPin', s.comboPin ?? 'Ctrl+P') },
+    { label: 'Отправить запрос', combo: 'Enter' },
+    { label: 'Сказать запрос голосом', note: 'кнопка-микрофон в строке ввода' },
+    { label: 'Свернуть ответ или настройки', combo: 'Esc' },
+    { label: 'Скрыть окно, когда всё свёрнуто', combo: 'Esc' },
+    { label: 'Перетащить панель', note: 'удерживайте любое свободное место панели; положение запомнится' },
+  ];
+  return page('Клавиши', 'Основное делается с клавиатуры — мышь не нужна.',
+    card(...rows.map((r) => el('div', { class: `key-row${r.main ? ' key-row--main' : ''}` }, [
+      el('span', { class: 'key-row__label' }, r.label),
+      r.combo
+        ? kbdRow(r.combo, r.editable ? {
+            editable: true,
+            onEdit: (wrap) => captureHotkey(wrap, s.hotkey, async (acc) => {
+              const res = await window.epicAI?.invoke('epic:hotkey:set', acc).catch(() => null);
+              if (res?.ok) { ctx.onChange('hotkey', res.requested); toast(`Горячая клавиша: ${res.requested}`); }
+              else toast('Сочетание занято системой — оставлено прежнее');
+            }),
+          } : (r.edit ?? {}))
+        : el('span', { class: 'subtle', style: { fontSize: '10.5px' } }, r.note ?? ''),
+    ]))),
+    el('div', { class: 'kb-note' }, 'Клик по кейкапам — перехват нового сочетания. Все сочетания регистрируются В СИСТЕМЕ и работают глобально — даже когда фокус в игре, а не на панели. Escape отменяет перехват.'),
+  );
+}
+
+/* ---------- Частые вопросы (референс-аккордеон) ---------- */
+
+const FAQ = [
+  {
+    cat: 'Игра и окно',
+    items: [
+      {
+        q: 'Игра сворачивается, когда открываю окно',
+        a: 'Так Windows поступает с полноэкранными играми: любое окно поверх сворачивает игру. Переключите игру в оконный режим без рамки — выглядит так же, как полный экран.',
+        crumbs: ['В игре', 'Настройки', 'Графика', 'Тип экрана', 'Оконный без рамки'],
+      },
+      { q: 'Пропадает звук игры, пока открыто окно', a: 'Часть игр глушит звук при потере фокуса. Включите в настройках игры фоновый звук («Audio → Mute when unfocused» или похожее) либо играйте в оконном режиме без рамки.' },
+      { q: 'Окно не открывается по горячей клавише', a: 'Откройте «Клавиши» и кликните по кейкапам первой строки, чтобы назначить новое сочетание: старое могло быть перехвачено оверлеем драйвера мыши, Discord или другой программой.' },
+      { q: 'Окно прячется, когда кликаю по игре', a: 'Так работает автоскрытие: клик вне Epic AI прячет оверлей, а приложение продолжает работать в трее. Закреплённое звёздочкой окно НЕ прячется — открепите его или выключите «Основное» → «Скрывать при клике вне окна».' },
+      { q: 'Как закрепить окно поверх игры', a: 'Кнопка-звёздочка в баре, тумблер «Поверх всех окон» в разделе «Основное» или сочетание Ctrl+P (работает глобально, даже в игре). Оверлей использует уровень screen-saver, поэтому виден и поверх оконной игры; пока окно закреплено, клик по игре его не прячет.' },
+    ],
+  },
+  {
+    cat: 'База знаний и ответы',
+    items: [
+      { q: 'Пишет «не найдено подтверждённой информации»', a: 'Это не сбой, а принцип Epic AI: ответы даются только по официальной базе. Проверьте, что выбран верный режим (Правила / Законы), и при необходимости обновите базу в разделе «Правила».' },
+      { q: 'Как обновить базу правил', a: 'Ничего нажимать не нужно: база обновляется сама при запуске приложения и по расписанию. Посмотреть новые и изменённые документы можно в «Правила» → «Посмотреть»: слева список изменений за день, справа сравнение «было / стало» с цветным diff; старые редакции не удаляются.' },
+      { q: 'Ответ ссылается на устаревшую редакцию', a: 'Поставьте 👎 и выберите «Устаревшая информация»: создастся отчёт, администратор сверит версию документа с форумом и исправит базу или промпт.' },
+      { q: 'Чем «Правила» отличаются от «Законов»', a: 'Это две независимые базы: правила проекта, сервера и организаций — против Конституции, Penal Code и судебных документов. Поиск в одном режиме не примешивает документы другого.' },
+    ],
+  },
+  {
+    cat: 'Программа',
+    items: [
+      { q: 'Аппаратное ускорение: включать или нет', a: 'На обычном ПК — включать: интерфейс рендерится GPU через Vulkan (ANGLE), это быстрее обычного рендера. На слабом ноутбуке или при просадках FPS отключите его либо включите «Режим снижения нагрузки» в разделе «Производительность». Живой фон со съёмкой экрана убран полностью, поэтому оверлей больше не нагружает игру.' },
+      { q: 'Куда девается окно при закрытии крестиком', a: 'В системный трей: приложение продолжает работать и синхронизировать базу. Полный выход — иконка трея → «Выход».' },
+      { q: 'Где хранятся мои настройки и сессия', a: 'Настройки привязаны к аккаунту Epic AI и общие между машинами. Сессия хранится в защищённом хранилище Electron на этом компьютере и не передаётся наружу.' },
+    ],
+  },
+];
+
+function pageFaq() {
+  const wrap = page('Частые вопросы', 'Короткие ответы на то, что спрашивают чаще всего.');
+  for (const group of FAQ) {
+    wrap.appendChild(el('div', { class: 'faq-cat' }, group.cat));
+    for (const item of group.items) {
+      const body = el('div', { class: 'faq-item__body' }, [el('div', {}, item.a)]);
+      if (item.crumbs?.length) {
+        body.appendChild(el('div', { class: 'crumbs' }, item.crumbs.flatMap((c, i) => [
+          i > 0 ? el('span', { class: 'crumb-sep' }, '›') : null,
+          el('span', { class: i === 0 ? 'crumb crumb--muted' : 'crumb' }, c),
+        ]).filter(Boolean)));
+      }
+      const head = el('button', { class: 'faq-item__head', type: 'button' }, [
+        el('span', {}, item.q),
+        el('span', { class: 'faq-item__chev', html: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg>' }),
+      ]);
+      const box = el('div', { class: 'faq-item' }, [head, body]);
+      head.addEventListener('click', () => box.classList.toggle('is-open'));
+      wrap.appendChild(box);
+    }
+  }
+  return wrap;
+}
+
+/* ---------- Профиль ----------
+   Вкладка «Профиль» из настроек УБРАНА (требование пользователя): профиль
+   и аккаунт открываются ОТДЕЛЬНЫМ окном (renderer/profile.html) — клик по
+   шапке меню пользователя или пункт «Профиль и аккаунт». В окне профиля:
+   аватар, роль, «@ник · вход через Telegram», карточка «Ответы ИИ сегодня»
+   с остатком дневного лимита и прогресс-баром, «Выйти из аккаунта». */
+
+
+
+
+/* ==== confirm.js ==== */
+(function () {
+'use strict';
+/**
+ * EPIC AI — окно подтверждения вопроса «Спросить ИИ?».
+ *
+ * ОТДЕЛЬНОЕ окно (требование пользователя): раньше модалка рисовалась
+ * внутри панели и перекрывала её. Показывает остаток дневного лимита
+ * запросов и прогресс-бар; «Спросить» (Enter) / «Отмена» (Esc) возвращают
+ * результат в main process каналом 'epic:ask:confirm:result', а тот —
+ * основной панели, которая ждёт ответ в epic:ask:confirm.
+ *
+ * Прозрачность и прочие визуальные настройки применяются так же, как в
+ * остальных окнах (applyVisualSettings + settings:changed).
+ */
+
+let settled = false;
+
+function done(ok) {
+  if (settled) return;
+  settled = true;
+  window.epicAI?.invoke('epic:ask:confirm:result', ok).catch(() => {});
+}
+
+async function loadQuota() {
+  try {
+    const q = await Ai.quota();
+    const left = Number(q?.left ?? 0);
+    const limit = Number(q?.limit ?? 0);
+    $('#confirm-quota').textContent = `${left} из ${limit}`;
+    $('#confirm-bar').style.width = limit > 0 ? `${Math.round((left / limit) * 100)}%` : '0%';
+  } catch {
+    $('#confirm-quota').textContent = 'лимит недоступен';
+    $('#confirm-bar').style.width = '0%';
+  }
+}
+
+async function boot() {
+  // Токен сессии — до запроса лимита (file:// не отправляет cookie)
+  await initAuth();
+  const runtime = await window.epicAI?.invoke('epic:runtime').catch(() => null);
+  if (runtime?.backendUrl) setBackendUrl(runtime.backendUrl);
+  if (runtime?.settings) applyVisualSettings(runtime.settings);
+  window.epicAI?.on('settings:changed', applyVisualSettings);
+
+  void loadQuota();
+
+  $('#confirm-ok').addEventListener('click', () => done(true));
+  $('#confirm-cancel').addEventListener('click', () => done(false));
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); done(true); }
+    else if (e.key === 'Escape') { e.preventDefault(); done(false); }
+  });
+  setTimeout(() => $('#confirm-ok')?.focus(), 30);
+}
+
+let __booted = false;
+function __start() {
+  if (__booted) return;
+  __booted = true;
+  void boot();
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', __start);
+else __start();
+
+})();
+</script>
+</body>
+</html>

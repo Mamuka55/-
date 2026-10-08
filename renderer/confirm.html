@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="ru" data-lowperf="false">
+<head>
+<meta charset="utf-8" />
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src https: data: blob:; connect-src http://127.0.0.1:* http://localhost:* https:; font-src 'self' data:;" />
+<title>Спросить ИИ? — Epic AI</title>
+<link rel="stylesheet" href="styles/tokens.css" />
+<link rel="stylesheet" href="styles/base.css" />
+<link rel="stylesheet" href="styles/main.css" />
+</head>
+<!-- Подтверждение вопроса — ОТДЕЛЬНОЕ окно (требование пользователя:
+     модалка больше не рисуется внутри панели и не перекрывает её).
+     Enter — спросить, Esc — отмена; результат уходит в main process
+     каналом epic:ask:confirm:result. -->
+<body class="confirmwin">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+    <div class="modal__box">
+      <div class="modal__title" id="confirm-title">Спросить ИИ?</div>
+      <div class="modal__quota">
+        <span>Осталось сегодня</span>
+        <b id="confirm-quota">…</b>
+      </div>
+      <div class="modal__bar"><span id="confirm-bar" style="width:100%"></span></div>
+      <div class="modal__actions">
+        <button class="btn btn--ghost" id="confirm-cancel" type="button">Отмена<span class="modal__key">Esc</span></button>
+        <button class="btn btn--accent" id="confirm-ok" type="button">Спросить<span class="modal__key">Enter</span></button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="scripts/confirm.js"></script>
+</body>
+</html>

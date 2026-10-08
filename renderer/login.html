@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src https: data:; connect-src http://127.0.0.1:* http://localhost:* http://lvh.me:* http://*.lvh.me:* https:;" />
+<title>Вход — Epic AI</title>
+<link rel="stylesheet" href="styles/tokens.css" />
+<link rel="stylesheet" href="styles/base.css" />
+<link rel="stylesheet" href="styles/login.css" />
+</head>
+<body class="loginwin">
+  <div class="login-card">
+    <div class="login-badge"><span class="brand-logo"></span></div>
+    <div class="login-title">Epic AI</div>
+    <div class="login-sub">Правила, законы и ответы ИИ по EpicRP / Epic GTA —<br />прямо поверх игры.</div>
+
+    <button class="login-btn login-btn--telegram" id="btn-telegram" type="button" hidden>
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.153-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.245-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.927-.683 2.116-.924 3.529-1.534 4.24-1.835 2.017-.84 2.436-.985 2.71-.99z"/></svg>
+      Войти через Telegram
+    </button>
+
+
+
+    <div class="login-none" id="login-none" hidden>
+      Ни один способ входа не настроен.<br />
+      Заполните DISCORD_* или TELEGRAM_* в <b>backend/.env</b>.
+    </div>
+
+    <div class="login-qr" id="login-qr" hidden>
+      <div class="login-qr__side">или с телефона</div>
+      <div class="login-qr__row">
+        <div class="login-qr__box"><img id="qr-img" alt="QR-код входа в Telegram-бота" /></div>
+        <div class="login-qr__text">
+          Наведите камеру телефона на код — откроется бот, нажмите в нём «Войти».
+          <div class="login-qr__code">Код в сообщении бота: <b id="qr-code">—</b></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="login-wait" id="login-wait" hidden>
+      <div class="login-wait__spin" aria-hidden="true"></div>
+      <div class="login-wait__title">Ожидание входа…</div>
+      <div class="login-wait__text" id="wait-text"></div>
+    </div>
+
+    <div class="login-status" id="login-status">Продолжите вход во внешнем браузере…</div>
+  </div>
+  <script type="module" src="scripts/login.js"></script>
+</body>
+</html>

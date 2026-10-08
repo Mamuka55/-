@@ -1,0 +1,101 @@
+/* ============================================================
+   EPIC AI — окно профиля (референс пользователя):
+   аватар + роль + «@ник · вход через Telegram»,
+   карточка «Ответы ИИ сегодня» (крупный остаток лимита +
+   прогресс-бар + подпись про сброс в 00:00 по Москве),
+   карточка «Выйти из аккаунта».
+   ============================================================ */
+
+body.profwin {
+  background: transparent;
+  overflow: hidden;
+}
+
+.profwin__chrome {
+  display: flex; align-items: center; gap: 9px;
+  height: 44px; padding: 0 8px 0 12px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(12, 12, 12, calc(var(--panel-alpha, .82) + .06));
+  border-radius: 14px 14px 0 0;
+  /* Окно профиля перетаскивается за шапку (как окно истории) */
+  -webkit-app-region: drag;
+}
+.profwin__chrome button { -webkit-app-region: no-drag; }
+.profwin__logo {
+  width: 22px; height: 22px; flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 7px; background: var(--accent); color: #0c0c0c;
+}
+.profwin__logo svg { width: 13px; height: 13px; }
+.profwin__title { font-size: 12px; font-weight: 800; letter-spacing: .04em; }
+
+.profwin__body {
+  height: calc(100vh - 44px);
+  padding: 14px;
+  overflow-y: auto;
+  background: rgba(12, 12, 12, var(--panel-alpha, .82));
+  border-radius: 0 0 14px 14px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+
+/* ---------- Шапка: аватар, имя, роль, провайдер ---------- */
+
+.prof-head { display: flex; align-items: center; gap: 13px; }
+.prof-ava {
+  width: 56px; height: 56px; flex: none; border-radius: 50%;
+  overflow: hidden;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--bg-muted); color: var(--accent-mid);
+  font-weight: 800; font-size: 19px;
+  border: 1.5px solid var(--line-strong);
+}
+.prof-ava img { width: 100%; height: 100%; object-fit: cover; }
+.prof-id { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.prof-name { font-size: 15px; font-weight: 800; line-height: 1.2; }
+.prof-login { font-size: 11px; color: var(--text-subtle); }
+
+/* ---------- Карточки ---------- */
+
+.prof-card {
+  border: 1px solid var(--line);
+  background: var(--card-bg, rgba(35, 35, 39, .78));
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex; flex-direction: column; gap: 9px;
+}
+.prof-card__title {
+  font-size: 10px; font-weight: 800; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--text-subtle);
+}
+
+/* Остаток лимита: крупное «X из Y осталось» + прогресс-бар */
+.prof-quota__big { font-size: 25px; font-weight: 800; line-height: 1.1; }
+.prof-quota__big b { color: var(--accent); font-size: 30px; }
+.prof-quota__big span { font-size: 13px; font-weight: 700; color: var(--text-muted); margin-left: 4px; }
+.prof-quota__big.is-empty b { color: var(--danger); }
+.prof-bar {
+  height: 8px; border-radius: 999px;
+  background: rgba(255, 255, 255, .09);
+  overflow: hidden;
+}
+.prof-bar span {
+  display: block; height: 100%; border-radius: 999px;
+  background: var(--accent);
+  transition: width .2s var(--ease);
+}
+.prof-caption { font-size: 10.5px; color: var(--text-subtle); line-height: 1.6; }
+
+/* ---------- Выход из аккаунта ---------- */
+
+.prof-logout__row { display: flex; align-items: center; gap: 10px; }
+.prof-logout__text { flex: 1 1 auto; min-width: 0; font-size: 11.5px; color: var(--text-muted); line-height: 1.55; }
+
+/* ---------- Сводка аккаунта ---------- */
+
+.prof-details { gap: 6px; }
+.prof-detail__row {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  font-size: 11.5px; color: var(--text-subtle);
+}
+.prof-detail__row b { color: var(--text-primary); font-size: 11px; font-weight: 600; text-align: right; }
+

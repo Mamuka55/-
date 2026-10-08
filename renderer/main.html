@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="ru" data-lowperf="false">
+<head>
+<meta charset="utf-8" />
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src https: data: blob:; connect-src http://127.0.0.1:* http://localhost:* https:; font-src 'self' data:;" />
+<title>Epic AI</title>
+<link rel="stylesheet" href="styles/tokens.css" />
+<link rel="stylesheet" href="styles/base.css" />
+<link rel="stylesheet" href="styles/main.css" />
+<link rel="stylesheet" href="styles/kb.css" />
+<link rel="stylesheet" href="styles/profile.css" />
+</head>
+<body>
+
+  <!-- БАР: лого · ввод · сегмент · пользователь · история · шестерёнка -->
+  <div class="panel" id="panel">
+    <div class="panel__in">
+
+      <!-- Логотип-«буй» -->
+      <div class="logo" id="logo" title="Epic AI — официальный помощник EpicRP">
+        <span class="logo__badge"><span class="brand-logo"></span></span>
+      </div>
+
+      <!-- Строка запроса + микрофон -->
+      <div class="query" id="query">
+        <input class="query__input" id="query-input" type="text" spellcheck="false" autocomplete="off"
+               placeholder="Вопрос, ситуация, пункт или номер статьи…" aria-label="Запрос к базе EpicRP" />
+        <button class="qbtn" id="query-clear" title="Очистить" aria-label="Очистить запрос" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+        <button class="qbtn" id="mic-btn" title="Сказать запрос голосом" aria-label="Голосовой ввод">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>
+          </svg>
+        </button>
+        <span class="query__spin"><span class="spinner"></span></span>
+      </div>
+
+      <!-- Сегмент-контрол режимов: две отдельные кнопки  -->
+      <div class="modes" role="tablist" aria-label="Режим поиска">
+        <button class="mode is-active" id="mode-rules" role="tab" aria-selected="true" data-mode="rules">Правила</button>
+        <button class="mode" id="mode-laws" role="tab" aria-selected="false" data-mode="laws">Законы</button>
+      </div>
+
+      <!-- Закрепить поверх игры -->
+      <button class="icon-btn" id="pin-btn" title="Закрепить поверх игры" aria-label="Закрепить поверх игры" aria-pressed="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round">
+          <path d="M12 3.6l2.5 5.2 5.7.8-4.1 4 1 5.7-5.1-2.7-5.1 2.7 1-5.7-4.1-4 5.7-.8z"/>
+        </svg>
+      </button>
+
+      <!-- Пилюля пользователя -->
+      <button class="userpill" id="user-btn" title="Профиль и аккаунт" hidden>
+        <span class="userpill__ava" id="user-ava"></span>
+        <span class="userpill__name ellipsis" id="user-name">—</span>
+      </button>
+
+      <!-- История вопросов -->
+      <button class="icon-btn" id="history-btn" title="История вопросов" aria-label="История вопросов">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1L3.5 8.3"/><path d="M3.5 3.8v4.5H8"/><path d="M12 7.5V12l3 2"/>
+        </svg>
+      </button>
+
+      <!-- Настройки -->
+      <button class="icon-btn" id="settings-btn" title="Настройки" aria-label="Настройки">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3.2"/>
+          <path d="M19.4 15a1.7 1.7 0 0 0.34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0.34-1.87 1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h.01a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55h.01a1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v.01a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.55 1z"/>
+        </svg>
+      </button>
+    </div>
+
+  </div>
+
+  <!-- ══════════════ РАЗВЁРНУТАЯ ОБЛАСТЬ: ответ ИЛИ настройки  ══════════════ -->
+  <div class="expander" id="expander">
+
+    <!-- ---------- ОТВЕТ AI  ---------- -->
+    <div class="expander__pane" id="pane-answer" hidden>
+      <div class="expander__head">
+        <span class="section-title">Ответ</span>
+        <span class="badge" id="answer-mode">Правила</span>
+        <span class="grow"></span>
+        <span class="subtle" id="answer-meta" style="font-size:10.5px"></span>
+        <button class="icon-btn" id="answer-close" title="Свернуть" aria-label="Свернуть">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 15l6-6 6 6"/></svg>
+        </button>
+      </div>
+      <div class="expander__body">
+        <div class="answer">
+          <div class="answer__verdict" id="answer-verdict"></div>
+
+          <div class="answer__block">
+            <div class="answer__label">Объяснение</div>
+            <div class="answer__text selectable" id="answer-explanation"></div>
+          </div>
+
+          <div class="answer__block" id="answer-basis-block">
+            <div class="answer__label">Основание</div>
+            <div class="answer__basis selectable" id="answer-basis"></div>
+          </div>
+
+          <div class="answer__block">
+            <div class="answer__label">Источники</div>
+            <div class="answer__sources" id="answer-sources"></div>
+          </div>
+
+          <!-- 👍 / 👎  -->
+          <div class="feedback" id="feedback">
+            <button class="vote" data-vote="up" id="vote-up" title="Ответ полезен" aria-label="Ответ полезен">👍</button>
+            <button class="vote" data-vote="down" id="vote-down" title="Ответ неверный" aria-label="Ответ неверный">👎</button>
+            <span class="feedback__hint" id="feedback-hint"></span>
+          </div>
+
+          <!-- Форма ошибки  -->
+          <form class="report-form" id="report-form">
+            <div class="report-form__title">Почему ответ неверный?</div>
+            <div class="radios" id="report-categories"></div>
+            <div>
+              <div class="answer__label" style="margin-bottom:4px">Комментарий <span class="subtle">(не обязательно)</span></div>
+              <textarea class="field selectable" id="report-comment" rows="2" maxlength="2000" placeholder="Опишите, что не так…"></textarea>
+            </div>
+            <div class="form-error" id="report-error"></div>
+            <div class="report-form__actions">
+              <button type="submit" class="btn btn--accent" id="report-submit">Отправить</button>
+              <button type="button" class="btn btn--ghost" id="report-cancel">Отмена</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- ---------- БАЗА ЗНАНИЙ: «Посмотреть» / «История изменений» ----------
+         Открывается выпадающей областью панели ВНЕ настроек (референс
+         пользователя: список изменений слева, «было / стало» справа). -->
+    <div class="expander__pane" id="pane-kb" hidden>
+      <div class="kbpane__bar">
+        <button class="kbtab is-active" id="kb-tab-updates" type="button" role="tab" aria-selected="true">Посмотреть</button>
+        <button class="kbtab" id="kb-tab-history" type="button" role="tab" aria-selected="false">История изменений</button>
+        <span class="grow"></span>
+        <button class="btn btn--ghost btn--sm" id="kb-close" type="button">закрыть</button>
+      </div>
+      <div class="kbpane__body" id="kb-pane-root"></div>
+    </div>
+
+    <!-- ---------- НАСТРОЙКИ: сайдбар + страницы (референс-стиль) ---------- -->
+    <div class="expander__pane" id="pane-settings" hidden>
+      <div class="set-shell">
+        <aside class="set-side" id="settings-side"></aside>
+        <div class="set-main scroll settings__pages" id="settings-pages"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Подтверждение вопроса «Спросить ИИ?» — ОТДЕЛЬНОЕ окно (confirm.html):
+       inline-модалка убрана из панели по требованию пользователя. -->
+
+  <div class="toast" id="toast"></div>
+
+  <script type="module" src="scripts/main.js"></script>
+</body>
+</html>

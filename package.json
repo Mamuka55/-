@@ -1,0 +1,35 @@
+{
+  "name": "epic-ai",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Epic AI — компактный desktop-overlay интеллектуальный помощник проекта EpicRP / Epic GTA",
+  "workspaces": [
+    "backend",
+    "electron"
+  ],
+  "scripts": {
+    "install:all": "npm install --workspace=backend && npm install --workspace=electron",
+    "db:migrate": "npm run db:migrate --workspace=backend",
+    "db:seed": "npm run db:seed --workspace=backend",
+    "db:reset": "npm run db:reset --workspace=backend",
+    "dev:backend": "npm run dev --workspace=backend",
+    "dev:electron": "npm run dev --workspace=electron",
+    "dev": "node scripts/dev.mjs",
+    "demo": "node scripts/build-demo.mjs",
+    "demo:test": "node scripts/test-demo-dom.mjs",
+    "smoke": "node scripts/run-smoke.mjs",
+    "test:all": "node scripts/test-all.mjs",
+    "build": "npm run build --workspace=backend",
+    "crawl": "npm run crawl --workspace=backend",
+    "sync": "npm run sync --workspace=backend",
+    "bootstrap:developer": "npm run bootstrap:developer --workspace=backend",
+    "typecheck": "npm run typecheck --workspace=backend",
+    "test": "node scripts/test-all.mjs"
+  },
+  "devDependencies": {
+    "jsdom": "^29.1.1"
+  },
+  "engines": {
+    "node": ">=20.11.0"
+  }
+}

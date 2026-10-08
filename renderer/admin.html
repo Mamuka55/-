@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ru" data-lowperf="false">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src https: data: blob:; connect-src http://127.0.0.1:* http://localhost:* https:; font-src 'self' data:;" />
+<title>Epic AI — Админ панель</title>
+<link rel="stylesheet" href="styles/tokens.css" />
+<link rel="stylesheet" href="styles/base.css" />
+<link rel="stylesheet" href="styles/admin.css" />
+</head>
+<body class="admin">
+
+  <div class="admin__titlebar" id="titlebar">
+    <div class="row gap-8" style="-webkit-app-region:drag; height:100%; padding-left:14px">
+      <svg width="15" height="15" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <path d="M5 25 L16 5 L27 25 Z" stroke="#ACE72E" stroke-width="2.6" stroke-linejoin="round"/>
+        <circle cx="16" cy="19.5" r="2.8" fill="#E2FF3F"/>
+      </svg>
+      <span style="font-size:11px;font-weight:800;letter-spacing:.2em">EPIC <span style="color:var(--accent)">AI</span></span>
+      <span class="subtle" style="font-size:10.5px;letter-spacing:.06em">· Админ панель</span>
+    </div>
+    <div class="row gap-6" style="-webkit-app-region:no-drag; padding-right:8px">
+      <span class="badge" id="admin-kb-badge">—</span>
+      <button class="icon-btn" id="admin-min" title="Свернуть" aria-label="Свернуть">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 12h14"/></svg>
+      </button>
+      <button class="icon-btn" id="admin-close" title="Закрыть" aria-label="Закрыть">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="admin__shell">
+    <aside class="admin__sidebar">
+      <div class="admin__user" id="admin-user"></div>
+      <nav class="admin__nav" id="admin-nav"></nav>
+      <div class="admin__sidebar-foot">
+        <button class="btn btn--ghost btn--sm" id="admin-overlay">Показать overlay</button>
+      </div>
+    </aside>
+
+    <main class="admin__content scroll" id="admin-content">
+      <div class="center" style="height:200px"><span class="spinner"></span></div>
+    </main>
+  </div>
+
+  <div class="toast" id="toast"></div>
+  <div class="modal-backdrop" id="modal-backdrop" hidden>
+    <div class="modal glass" id="modal"></div>
+  </div>
+
+  <script type="module" src="scripts/admin.js"></script>
+</body>
+</html>

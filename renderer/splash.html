@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="ru" data-lowperf="false">
+<head>
+<meta charset="utf-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src data:;" />
+<title>Epic AI</title>
+<link rel="stylesheet" href="styles/tokens.css" />
+<link rel="stylesheet" href="styles/base.css" />
+<link rel="stylesheet" href="styles/splash.css" />
+</head>
+<body>
+  <!-- Раунд 27, референс пользователя: бейдж-иконка, крупный заголовок
+       текущего этапа, подзаголовок и тонкий прогресс-бар. Список этапов
+       остаётся в DOM скрытым (его читают демо-тесты и скринридеры). -->
+  <div class="splash glass">
+    <div class="splash__badge"><span class="brand-logo"></span></div>
+    <div class="splash__title" id="splash-status">Инициализация приложения</div>
+    <div class="splash__sub">Секунду — и программа откроется</div>
+    <div class="splash__bar"><i id="splash-bar-fill"></i></div>
+    <ul class="splash__steps" id="splash-steps" hidden></ul>
+  </div>
+
+  <script type="module" src="scripts/splash.js"></script>
+</body>
+</html>
